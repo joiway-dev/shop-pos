@@ -64,13 +64,17 @@ def login_submit(
     user_id: Annotated[int, Form()],
     pin: Annotated[str, Form()] = "",
 ):
-    user = auth.authenticate(db, user_id, pin)
-    db.commit()  # persist login / login_failed audit entries
+    try:
+        user = auth.authenticate(db, user_id, pin)
+        error = None if user else "PIN ไม่ถูกต้อง"
+    except auth.LoginLocked as e:
+        user, error = None, str(e)
+    db.commit()  # persist failure counter and audit entries
     if user is None:
         return templates.TemplateResponse(
             request,
             "auth/login.html",
-            {"users": auth.list_login_users(db), "error": "PIN ไม่ถูกต้อง", "selected_id": user_id},
+            {"users": auth.list_login_users(db), "error": error, "selected_id": user_id},
             status_code=400,
         )
     request.session.clear()

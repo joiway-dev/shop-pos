@@ -5,7 +5,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import APP_DIR, AppConfig, load_config
 from app.db import create_db_engine, create_session_factory
-from app.routes import auth, settings
+from app.routes import auth, settings, users
 from app.routes.deps import LoginRequired, OwnerRequired
 from app.templating import templates
 
@@ -42,6 +42,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(settings.router)
+    app.include_router(users.router)
     return app
 
 

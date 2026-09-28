@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}ผู้ใช้งาน{% endblock %}
+{% block content %}
+<h1>ผู้ใช้งาน</h1>
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <table class="table">
+    <thead><tr><th>ชื่อ</th><th>สิทธิ์</th><th>สถานะ</th><th></th></tr></thead>
+    <tbody>
+    {% for u in users %}
+      <tr x-data="{ pinOpen: false }" class="{{ '' if u.is_active else 'muted' }}">
+        <td>{{ u.name }}{% if u.id == user.id %} <span class="hint">(คุณ)</span>{% endif %}</td>
+        <td>{{ "เจ้าของร้าน" if u.is_owner else "พนักงานขาย" }}</td>
+        <td>
+          {% if not u.is_active %}ปิดใช้งาน
+          {% elif locked[u.id] %}<span class="badge-danger">ล็อก (PIN ผิดหลายครั้ง)</span>
+          {% else %}ใช้งาน{% endif %}
+        </td>
+        <td class="row-actions">
+          {% if locked[u.id] %}
+          <form method="post" action="/users/{{ u.id }}/unlock"><button type="submit" class="small">ปลดล็อก</button></form>
+          {% endif %}
+          {% if u.is_active %}
+          <button type="button" class="small secondary" @click="pinOpen = !pinOpen">เปลี่ยน PIN</button>
+          {% if u.id != user.id %}
+          <form method="post" action="/users/{{ u.id }}/active" data-name="{{ u.name }}"
+                onsubmit="return confirm('ปิดใช้งาน ' + this.dataset.name + ' ? (ผู้ใช้นี้จะเข้าระบบไม่ได้)')">
+            <input type="hidden" name="active" value="false">
+            <button type="submit" class="small danger">ปิดใช้งาน</button>
+          </form>
+          {% endif %}
+          {% else %}
+          <form method="post" action="/users/{{ u.id }}/active">
+            <input type="hidden" name="active" value="true">
+            <button type="submit" class="small secondary">เปิดใช้งาน</button>
+          </form>
+          {% endif %}
+          <form method="post" action="/users/{{ u.id }}/pin" x-show="pinOpen" x-cloak class="inline-pin">
+            <input type="password" name="pin" class="pin-small" inputmode="numeric" pattern="[0-9]{4,6}"
+                   maxlength="6" required placeholder="PIN ใหม่" autocomplete="new-password">
+            <input type="password" name="pin_confirm" class="pin-small" inputmode="numeric" pattern="[0-9]{4,6}"
+                   maxlength="6" required placeholder="ยืนยัน PIN" autocomplete="new-password">
+            <button type="submit" class="small">บันทึก PIN</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="hint">ผู้ใช้จะถูกล็อกชั่วคราวเมื่อใส่ PIN ผิด 5 ครั้งติดกัน — กด "ปลดล็อก" หรือ "เปลี่ยน PIN" เพื่อปลดได้ทันที</p>
+</div>
+
+<div class="card narrow">
+  <h2>เพิ่มผู้ใช้</h2>
+  <form method="post" action="/users">
+    <label for="name">ชื่อ</label>
+    <input type="text" id="name" name="name" value="{{ form.name }}" maxlength="100" required>
+
+    <label>สิทธิ์</label>
+    <div class="radio-row">
+      <label class="check"><input type="radio" name="role" value="cashier" {% if form.role != "owner" %}checked{% endif %}> พนักงานขาย</label>
+      <label class="check"><input type="radio" name="role" value="owner" {% if form.role == "owner" %}checked{% endif %}> เจ้าของร้าน</label>
+    </div>
+
+    <label for="pin">PIN <span class="hint">(ตัวเลข 4–6 หลัก)</span></label>
+    <input type="password" id="pin" name="pin" class="pin-input" inputmode="numeric"
+           pattern="[0-9]{4,6}" maxlength="6" required autocomplete="new-password">
+    <label for="pin_confirm">ยืนยัน PIN</label>
+    <input type="password" id="pin_confirm" name="pin_confirm" class="pin-input" inputmode="numeric"
+           pattern="[0-9]{4,6}" maxlength="6" required autocomplete="new-password">
+
+    <div class="actions"><button type="submit">เพิ่มผู้ใช้</button></div>
+  </form>
+</div>
+{% endblock %}

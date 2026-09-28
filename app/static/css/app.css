@@ -116,5 +116,24 @@ button.secondary { background: #fff; color: var(--primary); }
 .menu-grid .btn { padding: 1.4rem; text-align: center; font-size: 1.2rem; }
 .menu-grid .btn.disabled { background: #e3e6eb; border-color: #e3e6eb; color: var(--muted); cursor: default; }
 
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { text-align: left; padding: 0.55rem 0.5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+.table th { color: var(--muted); font-size: 0.9rem; }
+.table tr.muted td { color: var(--muted); }
+.row-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: flex-end; }
+.row-actions form { margin: 0; }
+button.small { font-size: 0.9rem; padding: 0.3rem 0.7rem; }
+button.danger { background: #fff; color: var(--danger); border-color: var(--danger); }
+button.danger:hover { background: var(--danger-bg); }
+.badge-danger { color: var(--danger); font-weight: 700; }
+.inline-pin { display: flex; flex-wrap: wrap; gap: 0.4rem; width: 100%; justify-content: flex-end; }
+.pin-small { width: 8rem !important; font-size: 1rem !important; padding: 0.3rem 0.5rem !important; }
+@media (max-width: 600px) {
+  .table thead { display: none; }
+  .table tr { display: block; border-bottom: 1px solid var(--line); padding: 0.4rem 0; }
+  .table td { display: block; border: 0; padding: 0.15rem 0; }
+  .row-actions { justify-content: flex-start; }
+}
+
 .logo-preview { max-height: 90px; max-width: 240px; border: 1px solid var(--line); border-radius: 6px; padding: 4px; background: #fff; }
 .footer { text-align: center; color: var(--muted); font-size: 0.8rem; margin: 2rem 0 1rem; }

@@ -1,6 +1,8 @@
 """Users, PIN hashing and authentication."""
 
+import math
 import re
+from datetime import datetime, timedelta
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
@@ -8,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import User
+from app.models.base import utcnow
 from app.models.user import ROLE_OWNER, ROLES
 from app.services.audit import log_action
 
@@ -82,27 +85,130 @@ def create_first_owner(db: Session, name: str, pin: str) -> User:
     return create_user(db, None, name, ROLE_OWNER, pin)
 
 
-def authenticate(db: Session, user_id: int, pin: str) -> User | None:
-    """Check a user's PIN. Logs both successful and failed attempts."""
+# --- PIN lockout -------------------------------------------------------------
+# After MAX_PIN_ATTEMPTS consecutive wrong PINs the user is locked for
+# LOCK_BASE_SECONDS. Every further wrong PIN (once the lock expires) locks
+# again immediately with the duration doubled, capped at LOCK_MAX_SECONDS.
+# A correct PIN, an owner unlock or a PIN reset clears the counter.
+MAX_PIN_ATTEMPTS = 5
+LOCK_BASE_SECONDS = 60
+LOCK_MAX_SECONDS = 15 * 60
+
+
+class LoginLocked(AuthError):
+    def __init__(self, seconds_left: int):
+        self.seconds_left = seconds_left
+        minutes, seconds = divmod(seconds_left, 60)
+        wait = f"{minutes} นาที {seconds} วินาที" if minutes else f"{seconds} วินาที"
+        super().__init__(f"ใส่ PIN ผิดหลายครั้ง ระบบล็อกชั่วคราว กรุณารอ {wait}")
+
+
+def lock_seconds_left(user: User, now: datetime | None = None) -> int:
+    now = now or utcnow()
+    if user.locked_until is None or user.locked_until <= now:
+        return 0
+    return math.ceil((user.locked_until - now).total_seconds())
+
+
+def _check_not_locked(user: User, now: datetime) -> None:
+    left = lock_seconds_left(user, now)
+    if left:
+        raise LoginLocked(left)
+
+
+def _register_failure(db: Session, user: User, now: datetime, action: str) -> None:
+    user.failed_pin_count += 1
+    log_action(db, user.id, action, "user", user.id, {"failed_count": user.failed_pin_count})
+    over = user.failed_pin_count - MAX_PIN_ATTEMPTS
+    if over >= 0:
+        seconds = min(LOCK_BASE_SECONDS * 2**over, LOCK_MAX_SECONDS)
+        user.locked_until = now + timedelta(seconds=seconds)
+        log_action(db, user.id, "pin_locked", "user", user.id, {"seconds": seconds})
+
+
+def _clear_failures(user: User) -> None:
+    user.failed_pin_count = 0
+    user.locked_until = None
+
+
+def authenticate(db: Session, user_id: int, pin: str, now: datetime | None = None) -> User | None:
+    """Check a user's PIN. Returns None on a wrong PIN, raises LoginLocked
+    while locked (the PIN is not checked then). Caller commits."""
+    now = now or utcnow()
     user = get_active_user(db, user_id)
     if user is None:
         return None
+    _check_not_locked(user, now)
     if not verify_pin(user.pin_hash, pin):
-        log_action(db, user.id, "login_failed", "user", user.id)
+        _register_failure(db, user, now, "login_failed")
         return None
+    _clear_failures(user)
     log_action(db, user.id, "login", "user", user.id)
     return user
 
 
-def verify_owner_pin(db: Session, pin: str) -> User | None:
-    """Return the active owner whose PIN matches (for owner-approval prompts)."""
-    owners = db.scalars(select(User).where(User.role == ROLE_OWNER, User.is_active.is_(True)))
+def verify_owner_pin(db: Session, pin: str, now: datetime | None = None) -> User | None:
+    """Return the active, unlocked owner whose PIN matches (owner-approval prompts).
+
+    A wrong PIN counts as a failed attempt against every unlocked owner, since
+    the caller was trying to guess an owner PIN. Caller commits.
+    """
+    now = now or utcnow()
+    owners = [
+        o
+        for o in db.scalars(select(User).where(User.role == ROLE_OWNER, User.is_active.is_(True)))
+        if not lock_seconds_left(o, now)
+    ]
     for owner in owners:
         if verify_pin(owner.pin_hash, pin):
+            _clear_failures(owner)
             return owner
+    for owner in owners:
+        _register_failure(db, owner, now, "owner_pin_failed")
     return None
 
 
 def reset_pin(db: Session, actor_id: int | None, user: User, new_pin: str, via: str) -> None:
     user.pin_hash = hash_pin(new_pin)
+    _clear_failures(user)
     log_action(db, actor_id, "pin_reset", "user", user.id, {"via": via})
+
+
+# --- user management (owner only; enforced by routes) -------------------------
+
+
+def list_all_users(db: Session) -> list[User]:
+    return list(db.scalars(select(User).order_by(User.is_active.desc(), User.role.desc(), User.name)))
+
+
+def get_user(db: Session, user_id: int) -> User:
+    user = db.get(User, user_id)
+    if user is None:
+        raise AuthError("ไม่พบผู้ใช้")
+    return user
+
+
+def set_user_active(db: Session, actor: User, user: User, active: bool) -> None:
+    if user.is_active == active:
+        return
+    if not active:
+        if user.id == actor.id:
+            raise AuthError("ปิดใช้งานบัญชีของตัวเองไม่ได้")
+        if user.role == ROLE_OWNER and _active_owner_count(db) <= 1:
+            raise AuthError("ต้องมีเจ้าของร้านที่ใช้งานได้อย่างน้อย 1 คน")
+    user.is_active = active
+    log_action(
+        db, actor.id, "user_activate" if active else "user_deactivate", "user", user.id,
+        {"name": user.name},
+    )
+
+
+def unlock_user(db: Session, actor: User, user: User) -> None:
+    _clear_failures(user)
+    log_action(db, actor.id, "pin_unlock", "user", user.id, {"name": user.name})
+
+
+def _active_owner_count(db: Session) -> int:
+    return db.scalar(
+        select(func.count()).select_from(User).where(User.role == ROLE_OWNER, User.is_active.is_(True))
+    )
