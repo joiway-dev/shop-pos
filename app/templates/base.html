@@ -93,6 +93,9 @@
           <button type="submit" class="icon-btn" aria-label="ออกจากระบบ" title="ออกจากระบบ">{{ icon("logout") }}</button>
         </form>
       </header>
+      {% if program_outdated %}
+      <div class="update-banner" role="alert">โปรแกรมถูกอัปเดตแล้ว — ปิดหน้าต่างสีดำ แล้วเปิด <b>start.bat</b> ใหม่ เพื่อใช้เวอร์ชันล่าสุด (บางหน้าอาจใช้งานไม่ได้จนกว่าจะเปิดใหม่)</div>
+      {% endif %}
       <main class="content {% block main_class %}{% endblock %}">
         {% block content %}{% endblock %}
       </main>

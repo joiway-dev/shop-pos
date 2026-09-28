@@ -1,3 +1,4 @@
+import time
 from datetime import date
 
 from fastapi import Request
@@ -21,6 +22,33 @@ def thai_date(d: date) -> str:
     return f"{d.day} {THAI_MONTHS[d.month - 1]} {d.year + 543}"
 
 
+def _code_mtime() -> float:
+    """Newest modification time of the program's Python files and migrations."""
+    newest = 0.0
+    for folder in (APP_DIR, APP_DIR.parent / "migrations"):
+        for path in folder.rglob("*.py"):
+            try:
+                newest = max(newest, path.stat().st_mtime)
+            except OSError:
+                pass
+    return newest
+
+
+_STARTED_CODE_MTIME = _code_mtime()
+_update_check = {"at": 0.0, "outdated": False}
+
+
+def program_outdated() -> bool:
+    """True when the program files changed after this server started (a
+    program update was installed but start.bat was not restarted). Checked at
+    most every 15 seconds."""
+    now = time.monotonic()
+    if now - _update_check["at"] > 15:
+        _update_check["at"] = now
+        _update_check["outdated"] = _code_mtime() > _STARTED_CODE_MTIME + 1
+    return _update_check["outdated"]
+
+
 def _layout_context(request: Request) -> dict:
     """Shop name / logo for the sidebar on every page."""
     shop_name, has_logo, low, pending = "", False, 0, 0
@@ -39,6 +67,7 @@ def _layout_context(request: Request) -> dict:
         "current_path": request.url.path,
         "low_stock_count": low,
         "pending_cost_count": pending,
+        "program_outdated": program_outdated(),
     }
 
 
