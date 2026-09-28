@@ -1,3 +1,7 @@
+import asyncio
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -6,19 +10,41 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import APP_DIR, AppConfig, load_config
 from app.db import create_db_engine, create_session_factory
 from app.routes import (
-    aliases, ar, auth, categories, customers, matching, pos, products, purchases, quotations, sales, settings,
-    stock, suppliers, users,
+    aliases, ar, auth, backups, categories, closing, customers, matching, pos, products, purchases, quotations,
+    reports, sales, settings, stock, suppliers, users,
 )
 from app.routes.deps import LoginRequired, OwnerRequired
+from app.services import backup
 from app.services.auth import get_active_user
 from app.templating import templates
+
+
+BACKUP_CHECK_SECONDS = 3600
+log = logging.getLogger("shop")
+
+
+async def _backup_loop(app: FastAPI) -> None:
+    """Daily automatic backup: checked at start-up and then every hour."""
+    while True:
+        try:
+            await asyncio.to_thread(backup.ensure_daily_backup, app.state.config, app.state.session_factory)
+        except Exception:  # never let a backup problem stop the shop
+            log.exception("automatic backup failed")
+        await asyncio.sleep(BACKUP_CHECK_SECONDS)
 
 
 def create_app(config: AppConfig | None = None) -> FastAPI:
     config = config or load_config()
     config.ensure_dirs()
 
-    app = FastAPI(title="ระบบร้านวัสดุก่อสร้าง", docs_url=None, redoc_url=None, openapi_url=None)
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        task = asyncio.create_task(_backup_loop(app)) if config.auto_backup else None
+        yield
+        if task:
+            task.cancel()
+
+    app = FastAPI(title="ระบบร้านวัสดุก่อสร้าง", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.config = config
     app.state.engine = create_db_engine(config.db_url)
     app.state.session_factory = create_session_factory(app.state.engine)
@@ -61,6 +87,9 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     app.include_router(customers.router)
     app.include_router(ar.router)
     app.include_router(quotations.router)
+    app.include_router(reports.router)
+    app.include_router(closing.router)
+    app.include_router(backups.router)
     return app
 
 

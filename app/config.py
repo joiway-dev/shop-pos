@@ -19,6 +19,7 @@ APP_DIR = BASE_DIR / "app"
 @dataclass(frozen=True)
 class AppConfig:
     data_dir: Path
+    auto_backup: bool = True  # daily backup task (tests turn it off)
 
     @property
     def db_path(self) -> Path:

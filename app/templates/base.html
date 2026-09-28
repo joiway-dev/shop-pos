@@ -24,7 +24,11 @@
   ("/customers", "ลูกค้า", "users", 0),
   ("/ar", "ลูกหนี้ / รับชำระ", "clipboard", 0),
   ("/quotations", "ใบเสนอราคา", "tag", 0),
+  ("/close", "ปิดยอดประจำวัน", "check", 0),
 ] -%}
+{%- if user.may_see_cost -%}
+  {%- set nav_main = nav_main + [("/reports", "รายงาน", "chart", 0)] -%}
+{%- endif -%}
 {%- if user.may_receive_stock -%}
   {%- set nav_main = nav_main + [("/purchases", "รับสินค้าเข้า", "truck", pending_cost_count if user.may_see_cost else 0)] -%}
 {%- endif -%}
@@ -36,6 +40,7 @@
   ("/categories", "หมวดหมู่", "folder", 0),
   ("/aliases", "ชื่อเรียกสินค้า", "tag", 0),
   ("/users", "ผู้ใช้งาน", "users", 0),
+  ("/backup", "สำรองข้อมูล", "local", 0),
   ("/settings", "ตั้งค่าร้าน", "settings", 0),
 ] if user.is_owner else [] -%}
 {#- Active item = the longest nav path that prefixes the current path. -#}

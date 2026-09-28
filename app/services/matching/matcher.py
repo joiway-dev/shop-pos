@@ -98,6 +98,12 @@ _version = 0
 _cache: dict[str, tuple[int, CatalogIndex]] = {}
 
 
+def invalidate_index() -> None:
+    """Force a rebuild on next use (after restoring a backup / go-live)."""
+    global _version
+    _version += 1
+
+
 def mark_catalog_changed(db: Session) -> None:
     """Call after changing products/units/aliases; the index is rebuilt after commit."""
     db.info["catalog_changed"] = True

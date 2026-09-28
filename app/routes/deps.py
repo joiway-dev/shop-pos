@@ -55,3 +55,13 @@ def require_receiver(user: CurrentUser) -> User:
 
 
 ReceiverUser = Annotated[User, Depends(require_receiver)]
+
+
+def require_cost_viewer(user: CurrentUser) -> User:
+    """Owner, or staff the owner allowed to see costs (reports show profit)."""
+    if not user.may_see_cost:
+        raise OwnerRequired()
+    return user
+
+
+CostUser = Annotated[User, Depends(require_cost_viewer)]

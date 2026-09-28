@@ -29,7 +29,7 @@ def alembic_config(db_url: str) -> Config:
 
 @pytest.fixture
 def config(tmp_path: Path) -> AppConfig:
-    cfg = AppConfig(data_dir=tmp_path / "data")
+    cfg = AppConfig(data_dir=tmp_path / "data", auto_backup=False)
     cfg.ensure_dirs()
     command.upgrade(alembic_config(cfg.db_url), "head")
     return cfg

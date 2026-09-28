@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% macro cell(value, col) -%}
+  {%- if value is none or value == "" -%}-
+  {%- elif col.kind == MONEY -%}{{ value | money }}
+  {%- elif col.kind == QTY -%}{{ value | qty }}
+  {%- elif col.kind == PCT -%}{{ value }}%
+  {%- else -%}{{ value }}{%- endif -%}
+{%- endmacro %}
+{% block content %}
+<p class="eyebrow">รายงาน</p>
+<h1>{{ title }}</h1>
+
+<nav class="report-tabs">
+  {% for key, label in tabs %}<a href="/reports/{{ key }}?start={{ start }}&end={{ end }}" class="{{ 'active' if key == kind else '' }}">{{ label }}</a>{% endfor %}
+</nav>
+
+<form class="card filter-bar" method="get" action="/reports/{{ kind }}">
+  {% if kind != "idle" %}
+  <label class="inline-label">จาก <input type="date" name="start" value="{{ start }}" class="date-input"></label>
+  <label class="inline-label">ถึง <input type="date" name="end" value="{{ end }}" class="date-input"></label>
+  {% endif %}
+  {% if kind == "sales" %}
+  <select name="group" aria-label="แบ่งตาม">
+    <option value="day" {% if extra.group == "day" %}selected{% endif %}>รายวัน</option>
+    <option value="month" {% if extra.group == "month" %}selected{% endif %}>รายเดือน</option>
+  </select>
+  {% elif kind == "breakdown" %}
+  <select name="by" aria-label="แยกตาม">
+    <option value="product" {% if extra.by == "product" %}selected{% endif %}>แยกตามสินค้า</option>
+    <option value="category" {% if extra.by == "category" %}selected{% endif %}>แยกตามหมวดหมู่</option>
+    <option value="cashier" {% if extra.by == "cashier" %}selected{% endif %}>แยกตามพนักงาน</option>
+  </select>
+  {% elif kind == "top" %}
+  <select name="by" aria-label="เรียงตาม">
+    <option value="gross" {% if extra.by == "gross" %}selected{% endif %}>เรียงตามยอดขาย</option>
+    <option value="qty" {% if extra.by == "qty" %}selected{% endif %}>เรียงตามจำนวน</option>
+  </select>
+  <input type="number" name="limit" value="{{ extra.limit }}" min="5" max="200" style="width: 6rem" aria-label="จำนวนอันดับ">
+  {% elif kind == "idle" %}
+  <label class="inline-label">ไม่มีการขายมา <input type="number" name="days" value="{{ extra.days }}" min="7" max="3650" style="width: 6rem"> วัน</label>
+  {% endif %}
+  <button type="submit">แสดง</button>
+  <button type="submit" name="format" value="xlsx" class="secondary">ส่งออก Excel</button>
+</form>
+
+<div class="card">
+  <p class="hint">{{ subtitle }}{% if note and kind != "idle" %} · {{ note }}{% endif %}</p>
+  {% if rows %}
+  <div class="table-scroll">
+  <table class="table report-table">
+    <thead><tr>{% for c in columns %}<th class="{{ 'num' if c.kind in (MONEY, QTY, PCT) else '' }}">{{ c.title }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>{% for v in r %}<td class="{{ 'num' if columns[loop.index0].kind in (MONEY, QTY, PCT) else '' }}">{{ cell(v, columns[loop.index0]) }}</td>{% endfor %}</tr>
+    {% endfor %}
+    {% if total %}
+      <tr class="sum-row-table">{% for v in total %}<td class="{{ 'num' if columns[loop.index0].kind in (MONEY, QTY, PCT) else '' }}"><b>{{ cell(v, columns[loop.index0]) if v != "" else "" }}</b></td>{% endfor %}</tr>
+    {% endif %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p class="hint">ไม่มีข้อมูลในช่วงนี้</p>{% endif %}
+</div>
+{% endblock %}

@@ -552,6 +552,18 @@ button.danger-solid:hover { background: color-mix(in srgb, var(--danger) 85%, #0
 }
 .btn.small-btn { font-size: 0.85rem; padding: 0.25rem 0.7rem; border-radius: 9px; }
 .sum-row-table td { border-top: 2px solid var(--line-strong); }
+.report-tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+.report-tabs a { padding: 0.45rem 0.9rem; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--card); color: var(--text); text-decoration: none; font-weight: 700; font-size: 0.92rem; }
+.report-tabs a.active { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); }
+.inline-label { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0; font-weight: 400; }
+.table-scroll { overflow-x: auto; }
+.report-table td, .report-table th { white-space: nowrap; }
+.report-table td:nth-child(2) { white-space: normal; }
+.close-diff { display: flex; justify-content: space-between; align-items: baseline; border-radius: 12px; padding: 0.6rem 0.9rem; margin-top: 0.6rem; font-weight: 700; }
+.close-diff b { font-size: 1.4rem; }
+.close-diff.ok { background: var(--ok-bg); color: var(--ok); }
+.close-diff.bad { background: var(--danger-bg); color: var(--danger); }
+.golive { border-color: var(--danger); }
 .update-banner { background: var(--warn-bg); color: var(--warn); padding: 0.7rem 1.6rem; border-bottom: 1px solid var(--line); font-weight: 700; }
 
 .logo-preview { max-height: 90px; max-width: 240px; border: 1px solid var(--line); border-radius: 10px; padding: 4px; background: #fff; }

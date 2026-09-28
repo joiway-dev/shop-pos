@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}ปิดยอดประจำวัน{% endblock %}
+{% block content %}
+<p class="eyebrow">นับเงินก่อนปิดร้าน</p>
+<h1>ปิดยอดประจำวัน</h1>
+{% if done %}<div class="alert alert-ok">บันทึกปิดยอดแล้ว (ระบบสำรองข้อมูลให้อัตโนมัติ)</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<form method="get" action="/close" class="filter-bar card">
+  <label class="inline-label">วันที่ <input type="date" name="day" value="{{ day }}" class="date-input" onchange="this.form.submit()"></label>
+</form>
+
+<div class="stat-row">
+  <div class="stat"><small>ขายเงินสด ({{ p.bills }} บิลทั้งวัน)</small><b>฿{{ p.cash_sales | money }}</b></div>
+  <div class="stat"><small>รับชำระหนี้เป็นเงินสด</small><b>฿{{ p.cash_receipts | money }}</b></div>
+  <div class="stat"><small>ขายเงินโอน</small><b>฿{{ p.transfer | money }}</b></div>
+  <div class="stat"><small>ขายเงินเชื่อ</small><b>฿{{ p.credit | money }}</b></div>
+</div>
+
+<form class="card narrow" method="post" action="/close"
+      x-data='{ opening: {{ form.opening | string | tojson }}, counted: {{ form.counted | string | tojson }},
+                cashIn: {{ p.cash_sales + p.cash_receipts }},
+                sat(t) { const n = Number(String(t).replace(/,/g, "")); return Number.isFinite(n) ? Math.round(n * 100) : 0 },
+                fmt(s) { const v = Math.abs(s); return (s < 0 ? "-" : "") + Math.floor(v / 100).toLocaleString("en-US") + "." + String(v % 100).padStart(2, "0") },
+                get expected() { return this.sat(this.opening) + this.cashIn },
+                get diff() { return this.sat(this.counted) - this.expected } }'>
+  <input type="hidden" name="day" value="{{ day }}">
+  <h2>นับเงินในลิ้นชัก</h2>
+  <label for="opening">เงินทอนตั้งต้นเมื่อเช้า (บาท)</label>
+  <input type="text" id="opening" name="opening" x-model="opening" inputmode="decimal" placeholder="0">
+  <div class="sum-row"><span>เงินที่ควรมีในลิ้นชัก</span><b x-text="'฿' + fmt(expected)"></b></div>
+  <label for="counted">เงินสดที่นับได้จริงตอนนี้ (บาท)</label>
+  <input type="text" id="counted" name="counted" x-model="counted" inputmode="decimal" required class="cash-input">
+  <div class="close-diff" x-show="counted !== ''" :class="diff === 0 ? 'ok' : 'bad'">
+    <span x-text="diff === 0 ? 'เงินตรงยอด' : (diff < 0 ? 'เงินขาด' : 'เงินเกิน')"></span>
+    <b x-text="diff === 0 ? '✓' : '฿' + fmt(Math.abs(diff))"></b>
+  </div>
+  <label for="note">หมายเหตุ <span class="hint">(เช่น จ่ายค่าใช้จ่ายจากลิ้นชัก เหตุผลเงินขาด/เกิน)</span></label>
+  <textarea id="note" name="note" rows="2" maxlength="500">{{ form.note }}</textarea>
+  <div class="actions"><button type="submit">บันทึกปิดยอด</button></div>
+</form>
+
+{% if history %}
+<div class="card">
+  <h2>ปิดยอดของวันนี้</h2>
+  <table class="table">
+    <thead><tr><th>เวลา</th><th>โดย</th><th class="num">ควรมี</th><th class="num">นับได้</th><th class="num">ขาด/เกิน</th><th>หมายเหตุ</th></tr></thead>
+    <tbody>
+    {% for c in history %}
+      <tr class="{{ '' if loop.first else 'muted' }}">
+        <td>{{ to_local(c.created_at).strftime("%H:%M") }}{% if loop.first %} <span class="tag">ล่าสุด</span>{% endif %}</td>
+        <td>{{ names.get(c.user_id, "-") }}</td>
+        <td class="num">{{ c.expected_cash | money }}</td><td class="num">{{ c.counted_cash | money }}</td>
+        <td class="num {{ 'badge-danger' if c.difference < 0 else ('ok-text' if c.difference == 0 else 'warn-text') }}">{{ c.difference | money }}</td>
+        <td>{{ c.note }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if recent %}
+<div class="card">
+  <h2>ปิดยอดย้อนหลัง</h2>
+  <table class="table">
+    <thead><tr><th>วันที่</th><th class="num">ขายเงินสด</th><th class="num">ควรมี</th><th class="num">นับได้</th><th class="num">ขาด/เกิน</th></tr></thead>
+    <tbody>
+    {% for c in recent %}
+      <tr><td><a href="/close?day={{ c.business_date }}">{{ c.business_date.day }}/{{ c.business_date.month }}/{{ c.business_date.year + 543 }}</a></td>
+          <td class="num">{{ c.cash_sales | money }}</td><td class="num">{{ c.expected_cash | money }}</td>
+          <td class="num">{{ c.counted_cash | money }}</td>
+          <td class="num {{ 'badge-danger' if c.difference < 0 else '' }}">{{ c.difference | money }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,4 +1,6 @@
-from sqlalchemy import JSON, Boolean, CheckConstraint, Integer, String, Text
+from datetime import datetime
+
+from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -51,6 +53,9 @@ class ShopSetting(TimestampMixin, Base):
 
     # {"RC": "SB", ...}; missing types use documents.DEFAULT_PREFIXES
     doc_prefixes: Mapped[dict | None] = mapped_column(JSON)
+
+    # Set once by "เริ่มใช้งานจริง" (clears demo transactions); never reset.
+    went_live_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # Empty = <data_dir>/backups
     backup_dir: Mapped[str | None] = mapped_column(String(500))

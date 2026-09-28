@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}สำรองข้อมูล{% endblock %}
+{% block content %}
+<p class="eyebrow">ความปลอดภัยของข้อมูล</p>
+<h1>สำรองข้อมูล</h1>
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <p>ระบบสำรองข้อมูลให้<b>อัตโนมัติวันละครั้ง</b> และ<b>ทุกครั้งที่ปิดยอดประจำวัน</b> · เก็บไว้ {{ keep_days }} วัน</p>
+  <p class="hint">เก็บที่: <code>{{ target }}</code> — เปลี่ยนที่เก็บได้ในหน้า <a href="/settings">ตั้งค่าร้าน</a>
+    (แนะนำ: แฟลชไดรฟ์ ฮาร์ดดิสก์ภายนอก หรือโฟลเดอร์ Google Drive บนเครื่อง เผื่อเครื่องนี้เสีย)</p>
+  <form method="post" action="/backup/now"><button type="submit">สำรองข้อมูลเดี๋ยวนี้</button></form>
+</div>
+
+<div class="card">
+  <h2>ไฟล์สำรอง ({{ files | length }})</h2>
+  {% if files %}
+  <table class="table">
+    <thead><tr><th>วันเวลา</th><th>สาเหตุ</th><th class="num">ขนาด</th><th></th></tr></thead>
+    <tbody>
+    {% for f in files %}
+      <tr x-data="{ ask: false }">
+        <td class="nowrap">{{ f.created.day }}/{{ f.created.month }}/{{ f.created.year + 543 }} {{ f.created.strftime("%H:%M:%S") }}</td>
+        <td>{{ labels.get(f.reason, f.reason) }}</td>
+        <td class="num">{{ (f.size / 1024) | round | int }} KB</td>
+        <td class="row-actions">
+          <button type="button" class="small secondary" @click="ask = true">กู้คืนไฟล์นี้</button>
+          <div class="modal-back" x-show="ask" x-cloak @click.self="ask = false">
+            <form class="modal confirm-modal" method="post" action="/backup/restore">
+              <span class="confirm-icon">!</span>
+              <h2>กู้คืนข้อมูลจากไฟล์นี้?</h2>
+              <p>ข้อมูลทั้งหมดจะย้อนกลับไปเป็นของ <b>{{ f.created.day }}/{{ f.created.month }}/{{ f.created.year + 543 }} {{ f.created.strftime("%H:%M") }}</b></p>
+              <p class="hint">รายการที่ทำหลังจากเวลานั้นจะหายไป — ระบบสำรองข้อมูลปัจจุบันไว้ให้ก่อน (เผื่อเปลี่ยนใจ)</p>
+              <input type="hidden" name="filename" value="{{ f.name }}">
+              <label>PIN เจ้าของร้าน</label>
+              <input type="password" name="owner_pin" inputmode="numeric" maxlength="6" required autocomplete="off" class="pin-input">
+              <div class="actions center">
+                <button type="button" class="secondary" @click="ask = false">ไม่กู้คืน</button>
+                <button type="submit" class="danger-solid">ยืนยันกู้คืน</button>
+              </div>
+            </form>
+          </div>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="hint">ยังไม่มีไฟล์สำรอง</p>{% endif %}
+</div>
+
+{% if not went_live_at %}
+<form class="card narrow golive" method="post" action="/backup/go-live" x-data="{ ask: false }" @submit.prevent="ask = true" x-ref="f">
+  <h2>เริ่มใช้งานจริง (ล้างข้อมูลทดสอบ)</h2>
+  <p>ทำ<b>ครั้งเดียว</b>ก่อนเริ่มขายจริง: ลบบิลขาย ใบรับสินค้า สต็อก หนี้ ใบเสนอราคา ปิดยอด และเริ่มเลขที่เอกสารใหม่</p>
+  <p class="hint">เก็บไว้: สินค้า ราคา ชื่อเรียก หมวดหมู่ ลูกค้า ผู้ขาย ผู้ใช้ ตั้งค่าร้าน · ระบบสำรองข้อมูลก่อนล้างเสมอ
+    · หลังจากนี้ใช้ "นำเข้ายอดยกมา" ตั้งสต็อกเริ่มต้น</p>
+  <label for="confirm">พิมพ์คำว่า <b>{{ confirm_word }}</b></label>
+  <input type="text" id="confirm" name="confirm" required autocomplete="off">
+  <label for="gl-pin">PIN เจ้าของร้าน</label>
+  <input type="password" id="gl-pin" name="owner_pin" inputmode="numeric" maxlength="6" required autocomplete="off" class="pin-input">
+  <div class="actions"><button type="submit" class="danger">ล้างข้อมูลทดสอบ</button></div>
+  <div class="modal-back" x-show="ask" x-cloak @click.self="ask = false">
+    <div class="modal confirm-modal">
+      <span class="confirm-icon">!</span>
+      <h2>ล้างข้อมูลทดสอบทั้งหมด?</h2>
+      <p class="hint">บิล ใบรับ สต็อก หนี้ และใบเสนอราคาทั้งหมดจะถูกลบ (มีไฟล์สำรองก่อนล้าง) — ทำได้ครั้งเดียว</p>
+      <div class="actions center">
+        <button type="button" class="secondary" @click="ask = false">ยกเลิก</button>
+        <button type="button" class="danger-solid" @click="$refs.f.submit()">ยืนยันล้างข้อมูล</button>
+      </div>
+    </div>
+  </div>
+</form>
+{% else %}
+<p class="hint">เริ่มใช้งานจริงแล้วเมื่อ {{ went_live_at.date() }}</p>
+{% endif %}
+{% endblock %}
