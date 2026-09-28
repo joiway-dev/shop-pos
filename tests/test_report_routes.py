@@ -42,10 +42,10 @@ def test_breakdown_shows_profit(client, owner, sold):
     assert sold.lines[0].product_name_snapshot in r.text
 
 
-@pytest.mark.parametrize("url", ["/reports/sales", "/reports/tax", "/reports/idle"])
+@pytest.mark.parametrize("url", REPORT_URLS)
 def test_reports_export_xlsx(client, owner, sold, url):
     login(client, owner, OWNER_PIN)
-    r = client.get(url + "?format=xlsx")
+    r = client.get(url + ("&" if "?" in url else "?") + "format=xlsx")
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("application/vnd.openxmlformats")
     wb = load_workbook(io.BytesIO(r.content))

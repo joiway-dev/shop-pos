@@ -24,7 +24,7 @@ class Column:
 
 
 def _cell_value(value, kind: str):
-    if value is None:
+    if value is None or value == "":
         return None
     if kind == MONEY:
         return Decimal(value) / 100
