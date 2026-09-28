@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 
 from app.models.settings import HEAD_OFFICE_BRANCH_NO
 from app.routes.deps import DB, OwnerUser
-from app.services import documents
+from app.services import documents, network
 from app.services import settings as settings_service
 from app.services.settings import SettingsError, ShopSettingsInput
 from app.templating import templates
@@ -48,6 +48,7 @@ def _render(request: Request, user, row, form, errors=None, saved=False, status_
             "saved": saved,
             "default_backup_dir": str(request.app.state.config.default_backup_dir),
             "doc_titles": documents.TITLES,
+            "lan_urls": [f"http://{ip}:{request.url.port or 8000}" for ip in network.lan_addresses()],
         },
         status_code=status_code,
     )

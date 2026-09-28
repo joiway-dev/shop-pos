@@ -119,6 +119,17 @@
 </form>
 
 <div class="card" style="margin-top: 1.5rem">
+  <h2>ใช้งานจากเครื่องอื่นในร้าน (iPad / แท็บเล็ต / คอมเครื่องอื่น)</h2>
+  {% if lan_urls %}
+  <p>ต่อ WiFi เดียวกับเครื่องนี้ แล้วเปิดเบราว์เซอร์ไปที่:</p>
+  {% for url in lan_urls %}<p class="lan-url"><b>{{ url }}</b></p>{% endfor %}
+  <p class="hint">เครื่องนี้ต้องเปิด start.bat ไว้ตลอด · ถ้าเข้าไม่ได้ ให้อนุญาต Python ใน Windows Firewall · ถ้า IP เปลี่ยนบ่อย ให้ตั้ง IP คงที่ที่เราเตอร์</p>
+  {% else %}
+  <p class="hint">เครื่องนี้ยังไม่ได้ต่อเครือข่าย</p>
+  {% endif %}
+</div>
+
+<div class="card" style="margin-top: 1.5rem">
   <h2>โลโก้ร้าน</h2>
   {% if row.logo_filename %}
   <p><img class="logo-preview" src="/settings/logo?v={{ row.updated_at.timestamp() | int }}" alt="โลโก้ร้าน"></p>
