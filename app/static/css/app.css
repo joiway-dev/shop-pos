@@ -507,6 +507,10 @@ button:disabled, button:disabled:hover { background: var(--line); border-color: 
 .prefix-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 .prefix-grid label { margin-top: 0.4rem; }
 
+.confirm-modal { text-align: center; max-width: 440px; }
+.confirm-icon { width: 56px; height: 56px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--danger-bg); color: var(--danger); font-size: 1.8rem; font-weight: 700; margin-bottom: 0.4rem; }
+button.danger-solid { background: var(--danger); border-color: var(--danger); color: #fff; }
+button.danger-solid:hover { background: color-mix(in srgb, var(--danger) 85%, #000); border-color: var(--danger); }
 .update-banner { background: var(--warn-bg); color: var(--warn); padding: 0.7rem 1.6rem; border-bottom: 1px solid var(--line); font-weight: 700; }
 
 .logo-preview { max-height: 90px; max-width: 240px; border: 1px solid var(--line); border-radius: 10px; padding: 4px; background: #fff; }

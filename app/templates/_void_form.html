@@ -1,0 +1,26 @@
+{# Void form with a second confirmation step (owner request: never void on one click).
+   The browser checks the required fields first; the dialog then shows what will happen. #}
+{% macro void_form(action, doc_no, button_label, effect, reason="") %}
+{# Single-quoted x-data: Jinja's tojson escapes ' but not ". #}
+<form method="post" action="{{ action }}" x-data='{ ask: false, reason: {{ reason | tojson }} }'
+      x-ref="voidForm" @submit.prevent="ask = true">
+  <label for="reason">เหตุผล</label>
+  <input type="text" id="reason" name="reason" x-model="reason" maxlength="500" required placeholder="เช่น คีย์จำนวนผิด">
+  <label for="owner_pin">PIN เจ้าของร้าน</label>
+  <input type="password" id="owner_pin" name="owner_pin" inputmode="numeric" maxlength="6" required autocomplete="off" class="pin-input">
+  <div class="actions"><button type="submit" class="danger">{{ button_label }}</button></div>
+
+  <div class="modal-back" x-show="ask" x-cloak @click.self="ask = false" @keydown.escape.window="ask = false">
+    <div class="modal confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="void-title">
+      <span class="confirm-icon">!</span>
+      <h2 id="void-title">ยืนยันการยกเลิก {{ doc_no }}?</h2>
+      <p>เหตุผล: <b x-text="reason"></b></p>
+      <p class="hint">{{ effect }}</p>
+      <div class="actions center">
+        <button type="button" class="secondary" @click="ask = false" x-ref="cancelBtn">ไม่ยกเลิก</button>
+        <button type="button" class="danger-solid" @click="$refs.voidForm.submit()">ยืนยันยกเลิก</button>
+      </div>
+    </div>
+  </div>
+</form>
+{% endmacro %}

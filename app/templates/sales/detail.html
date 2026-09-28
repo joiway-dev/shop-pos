@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_void_form.html" import void_form %}
 {% block title %}{{ sale.doc_no }}{% endblock %}
 {% block content %}
 {% set issued = to_local(sale.created_at) %}
@@ -71,13 +72,9 @@
 <div class="card narrow">
   <h2>ยกเลิกบิล</h2>
   <p class="hint">ต้องใช้ PIN เจ้าของร้าน — สต็อกจะถูกคืนอัตโนมัติ บิลยังอยู่ในระบบและพิมพ์ซ้ำได้ (มีคำว่า "ยกเลิก")</p>
-  <form method="post" action="/sales/{{ sale.id }}/void">
-    <label for="reason">เหตุผล</label>
-    <input type="text" id="reason" name="reason" value="{{ reason or '' }}" maxlength="500" required placeholder="เช่น คีย์จำนวนผิด">
-    <label for="owner_pin">PIN เจ้าของร้าน</label>
-    <input type="password" id="owner_pin" name="owner_pin" inputmode="numeric" maxlength="6" required autocomplete="off" class="pin-input">
-    <div class="actions"><button type="submit" class="danger">ยกเลิกบิลนี้</button></div>
-  </form>
+  {{ void_form("/sales/%d/void" % sale.id, sale.doc_no, "ยกเลิกบิลนี้",
+               "บิลจะเปลี่ยนเป็น \"ยกเลิก\" และคืนสต็อกทุกรายการ — ทำย้อนกลับไม่ได้ (ถ้าต้องการขายใหม่ ใช้ \"ออกใบใหม่แทน\")",
+               reason or "") }}
 </div>
 {% endif %}
 {% endblock %}

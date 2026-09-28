@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_void_form.html" import void_form %}
 {% block title %}{{ p.doc_no }}{% endblock %}
 {% block content %}
 {% set t = to_local(p.created_at) %}
@@ -74,13 +75,8 @@
 <div class="card narrow">
   <h2>ยกเลิกใบรับนี้</h2>
   <p class="hint">รับผิด (จำนวน/สินค้า/ราคา) ให้ยกเลิกแล้วบันทึกใหม่ — ต้องใช้ PIN เจ้าของร้าน สต็อกจะถูกตัดคืนและต้นทุนเฉลี่ยคำนวณใหม่</p>
-  <form method="post" action="/purchases/{{ p.id }}/void">
-    <label for="reason">เหตุผล</label>
-    <input type="text" id="reason" name="reason" maxlength="500" required>
-    <label for="owner_pin">PIN เจ้าของร้าน</label>
-    <input type="password" id="owner_pin" name="owner_pin" inputmode="numeric" maxlength="6" required autocomplete="off" class="pin-input">
-    <div class="actions"><button type="submit" class="danger">ยกเลิกใบรับ</button></div>
-  </form>
+  {{ void_form("/purchases/%d/void" % p.id, p.doc_no, "ยกเลิกใบรับ",
+               "สต็อกของทุกรายการในใบนี้จะถูกตัดออก และต้นทุนเฉลี่ยคำนวณใหม่ — ทำย้อนกลับไม่ได้ ถ้ารับผิดให้บันทึกใบรับใหม่") }}
 </div>
 {% endif %}
 {% endblock %}
