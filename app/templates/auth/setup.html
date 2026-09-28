@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}ตั้งค่าครั้งแรก{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>ยินดีต้อนรับ — ตั้งค่าครั้งแรก</h1>
+  <p>สร้างบัญชี <b>เจ้าของร้าน</b> สำหรับเข้าใช้งานระบบ</p>
+  {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+  <form method="post" action="/setup">
+    <label for="name">ชื่อเจ้าของร้าน</label>
+    <input type="text" id="name" name="name" value="{{ name }}" maxlength="100" required autofocus>
+
+    <label for="pin">PIN <span class="hint">(ตัวเลข 4–6 หลัก ใช้แทนรหัสผ่าน)</span></label>
+    <input type="password" id="pin" name="pin" class="pin-input" inputmode="numeric"
+           pattern="[0-9]{4,6}" maxlength="6" required autocomplete="new-password">
+
+    <label for="pin_confirm">ยืนยัน PIN อีกครั้ง</label>
+    <input type="password" id="pin_confirm" name="pin_confirm" class="pin-input" inputmode="numeric"
+           pattern="[0-9]{4,6}" maxlength="6" required autocomplete="new-password">
+
+    <div class="actions"><button type="submit">สร้างบัญชีและเข้าสู่ระบบ</button></div>
+  </form>
+</div>
+{% endblock %}

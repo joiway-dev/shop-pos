@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}ตั้งค่าร้าน{% endblock %}
+{% macro err(field) %}{% if errors.get(field) %}<div class="field-error">{{ errors[field] }}</div>{% endif %}{% endmacro %}
+{% block content %}
+<h1>ตั้งค่าร้าน</h1>
+{% if saved %}<div class="alert alert-ok">บันทึกเรียบร้อยแล้ว</div>{% endif %}
+{% if errors %}<div class="alert alert-error">บันทึกไม่สำเร็จ กรุณาตรวจช่องที่มีข้อความสีแดง</div>{% endif %}
+
+<form method="post" action="/settings"
+      x-data='{ vatMode: {{ form.vat_mode | tojson }}, branchType: {{ form.branch_type | tojson }} }'>
+  <div class="card">
+    <h2>ข้อมูลร้าน</h2>
+    <label for="shop_name">ชื่อร้าน</label>
+    <input type="text" id="shop_name" name="shop_name" value="{{ form.shop_name }}" maxlength="200" required>
+    {{ err("shop_name") }}
+
+    <label for="address">ที่อยู่</label>
+    <textarea id="address" name="address" rows="3">{{ form.address }}</textarea>
+
+    <label for="phone">เบอร์โทร</label>
+    <input type="text" id="phone" name="phone" value="{{ form.phone }}" maxlength="50">
+  </div>
+
+  <div class="card">
+    <h2>ภาษีมูลค่าเพิ่ม (VAT)</h2>
+    <div class="radio-row">
+      <label class="check"><input type="radio" name="vat_mode" value="none" x-model="vatMode"> ไม่จด VAT</label>
+      <label class="check"><input type="radio" name="vat_mode" value="vat" x-model="vatMode"> จด VAT</label>
+    </div>
+    {{ err("vat_mode") }}
+    <p class="hint">การเปลี่ยนโหมดมีผลกับเอกสารที่ออกหลังจากนี้เท่านั้น เอกสารเก่ายังพิมพ์ซ้ำได้ตามรูปแบบเดิม</p>
+
+    <label for="tax_id">เลขประจำตัวผู้เสียภาษี (13 หลัก)
+      <span class="hint" x-show="vatMode === 'none'">— ไม่บังคับในโหมดไม่จด VAT</span></label>
+    <input type="text" id="tax_id" name="tax_id" value="{{ form.tax_id }}" inputmode="numeric" maxlength="17">
+    {{ err("tax_id") }}
+
+    <label>สถานประกอบการ</label>
+    <div class="radio-row">
+      <label class="check"><input type="radio" name="branch_type" value="head" x-model="branchType"> สำนักงานใหญ่</label>
+      <label class="check"><input type="radio" name="branch_type" value="branch" x-model="branchType"> สาขา</label>
+    </div>
+    <div x-show="branchType === 'branch'" {% if form.branch_type != "branch" %}x-cloak{% endif %}>
+      <label for="branch_no">เลขที่สาขา <span class="hint">(ตัวเลข เช่น 00001)</span></label>
+      <input type="text" id="branch_no" name="branch_no" value="{{ form.branch_no }}" inputmode="numeric" maxlength="5">
+    </div>
+    {{ err("branch_no") }}
+
+    <div x-show="vatMode === 'vat'" {% if form.vat_mode != "vat" %}x-cloak{% endif %}>
+      <label for="vat_rate">อัตราภาษี (%)</label>
+      <input type="text" id="vat_rate" name="vat_rate" value="{{ form.vat_rate }}" inputmode="decimal" style="max-width: 10rem">
+      {{ err("vat_rate") }}
+
+      <label class="check"><input type="checkbox" name="price_includes_vat" value="true"
+        {% if form.price_includes_vat %}checked{% endif %}> ราคาขายที่ตั้งไว้ รวม VAT แล้ว</label>
+
+      <label class="check"><input type="checkbox" name="allow_abbreviated_invoice" value="true"
+        {% if form.allow_abbreviated_invoice %}checked{% endif %}> เปิดใช้ใบกำกับภาษีอย่างย่อ</label>
+      <p class="hint">ควรให้นักบัญชียืนยันเงื่อนไขการใช้ใบกำกับภาษีอย่างย่อกับร้านก่อนเปิด</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>สำรองข้อมูล</h2>
+    <label for="backup_dir">โฟลเดอร์เก็บไฟล์สำรอง
+      <span class="hint">(เว้นว่าง = {{ default_backup_dir }})</span></label>
+    <input type="text" id="backup_dir" name="backup_dir" value="{{ form.backup_dir }}" maxlength="500">
+    {{ err("backup_dir") }}
+
+    <label for="backup_keep_days">เก็บไฟล์สำรองย้อนหลัง (วัน)</label>
+    <input type="number" id="backup_keep_days" name="backup_keep_days" value="{{ form.backup_keep_days }}"
+           min="1" max="3650" style="max-width: 10rem">
+    {{ err("backup_keep_days") }}
+  </div>
+
+  <div class="actions"><button type="submit">บันทึกการตั้งค่า</button></div>
+</form>
+
+<div class="card" style="margin-top: 1.5rem">
+  <h2>โลโก้ร้าน</h2>
+  {% if row.logo_filename %}
+  <p><img class="logo-preview" src="/settings/logo?v={{ row.updated_at.timestamp() | int }}" alt="โลโก้ร้าน"></p>
+  {% endif %}
+  <form method="post" action="/settings/logo" enctype="multipart/form-data">
+    <input type="file" name="logo" accept="image/png,image/jpeg" required>
+    <span class="hint">PNG หรือ JPG ไม่เกิน 1 MB</span>
+    {{ err("logo") }}
+    <div class="actions"><button type="submit" class="secondary">อัปโหลดโลโก้</button></div>
+  </form>
+</div>
+{% endblock %}

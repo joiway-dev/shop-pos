@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}หน้าหลัก{% endblock %}
+{% block content %}
+<h1>สวัสดี {{ user.name }}</h1>
+<div class="menu-grid">
+  <span class="btn disabled">ขายหน้าร้าน<br><small>(เร็วๆ นี้)</small></span>
+  <span class="btn disabled">สินค้า<br><small>(เร็วๆ นี้)</small></span>
+  {% if user.is_owner %}
+  <a class="btn" href="/settings">ตั้งค่าร้าน</a>
+  {% endif %}
+</div>
+{% endblock %}

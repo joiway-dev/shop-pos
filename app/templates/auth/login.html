@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}เข้าสู่ระบบ{% endblock %}
+{% block content %}
+{# Step 1: pick a user (click or press 1-9). Step 2: type PIN, Enter to log in, Esc to go back. #}
+{# Single-quoted attribute: Jinja's tojson escapes ' but not ". #}
+<div x-data='{
+       users: {{ users | map(attribute="id") | list | tojson }},
+       names: {{ users | map(attribute="name") | list | tojson }},
+       selected: {{ selected_id | tojson }},
+       pick(id) { this.selected = id; this.$nextTick(() => this.$refs.pin.focus()); },
+       back() { this.selected = null; }
+     }'
+     x-init="if (selected) $nextTick(() => $refs.pin.focus())"
+     @keydown.window="if (selected === null && $event.key >= '1' && $event.key <= '9') {
+                        const i = Number($event.key) - 1; if (i < users.length) pick(users[i]);
+                      }">
+
+  <div class="card" x-show="selected === null" {% if selected_id %}x-cloak{% endif %}>
+    <h1>เลือกชื่อผู้ใช้</h1>
+    <div class="user-grid">
+      {% for u in users %}
+      <button type="button" class="user-btn" @click="pick({{ u.id }})">
+        {% if loop.index <= 9 %}<span class="role">กด {{ loop.index }}</span>{% endif %}
+        {{ u.name }}
+        <span class="role">{{ "เจ้าของร้าน" if u.is_owner else "พนักงานขาย" }}</span>
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card narrow" style="margin: 0 auto;" x-show="selected !== null" {% if not selected_id %}x-cloak{% endif %}>
+    <h1>ใส่ PIN — <span x-text="names[users.indexOf(selected)]"></span></h1>
+    {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+    <form method="post" action="/login" @keydown.escape="back()">
+      <input type="hidden" name="user_id" :value="selected">
+      <input type="password" name="pin" x-ref="pin" class="pin-input" inputmode="numeric"
+             pattern="[0-9]{4,6}" maxlength="6" required autocomplete="off" aria-label="PIN">
+      <div class="actions">
+        <button type="submit">เข้าสู่ระบบ</button>
+        <button type="button" class="secondary" @click="back()">เปลี่ยนผู้ใช้ (Esc)</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
