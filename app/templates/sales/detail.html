@@ -25,6 +25,14 @@
     ชำระ{{ {"cash": "เงินสด", "transfer": "เงินโอน", "credit": "เงินเชื่อ"}[sale.payment_type] }}
     {% if sale.print_count %} · พิมพ์แล้ว {{ sale.print_count }} ครั้ง{% endif %}
   </p>
+  {% if sale.customer_id %}
+  <p>ลูกค้า: <a href="/customers/{{ sale.customer_id }}"><b>{{ sale.buyer_snapshot.name if sale.buyer_snapshot else "-" }}</b></a>
+    {% if sale.payment_type == "credit" %}
+    · ครบกำหนด {{ sale.due_date.day }}/{{ sale.due_date.month }}/{{ sale.due_date.year + 543 }}
+    · ชำระแล้ว {{ paid | money }} · <b>ค้าง {{ (sale.total - paid) | money if sale.status == "completed" else "0.00" }}</b>
+    {% if sale.status == "completed" and sale.total > paid %}<a class="btn small-btn" href="/ar/pay/{{ sale.customer_id }}">รับชำระ</a>{% endif %}
+    {% endif %}</p>
+  {% endif %}
   {% if sale.buyer_snapshot %}
   <p>ผู้ซื้อ: <b>{{ sale.buyer_snapshot.name }}</b> — {{ sale.buyer_snapshot.address }}
     {% if sale.buyer_snapshot.tax_id %}· เลขผู้เสียภาษี {{ sale.buyer_snapshot.tax_id }}{% endif %}</p>

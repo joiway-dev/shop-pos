@@ -3,10 +3,10 @@
 Money = satang (INTEGER); quantities = x1000 (INTEGER).
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, CheckConstraint, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -72,8 +72,8 @@ class Sale(TimestampMixin, Base):
 
     doc_type: Mapped[str] = mapped_column(String(10), nullable=False)
     doc_no: Mapped[str] = mapped_column(String(30), nullable=False, unique=True)
-    # FK to customers is added in phase 4 together with the customers table.
-    customer_id: Mapped[int | None] = mapped_column(Integer)
+    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"), index=True)
+    due_date: Mapped[date | None] = mapped_column(Date)  # credit sales only
     status: Mapped[str] = mapped_column(String(10), default=SALE_COMPLETED, nullable=False)
 
     subtotal: Mapped[int] = mapped_column(Integer, nullable=False)  # after line discounts

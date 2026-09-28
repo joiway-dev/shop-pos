@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ qt.doc_no }}{% endblock %}
+{% block content %}
+{% set t = to_local(qt.created_at) %}
+<p><a href="/quotations">&larr; ใบเสนอราคา</a></p>
+<div class="page-head">
+  <div>
+    <p class="eyebrow">ใบเสนอราคา</p>
+    <h1>{{ qt.doc_no }}
+      <span class="status {{ {'open': 'status-ok', 'expired': 'status-needs_choice', 'converted': 'status-skipped'}[state] }}">{{ labels[state] }}</span></h1>
+  </div>
+  <div class="head-actions">
+    {% if state == "open" %}<a class="btn" href="/pos?from_quote={{ qt.id }}">แปลงเป็นบิลขาย</a>{% endif %}
+    {% if state != "converted" %}<a class="btn secondary" href="/pos?mode=quote&edit={{ qt.id }}">แก้ไข</a>{% endif %}
+    <a class="btn secondary" href="/quotations/{{ qt.id }}/print" target="_blank">พิมพ์ A4</a>
+  </div>
+</div>
+{% if done == "saved" %}<div class="alert alert-ok">บันทึกใบเสนอราคาแล้ว</div>{% endif %}
+{% if done == "renewed" %}<div class="alert alert-ok">ต่ออายุแล้ว</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <p>ลูกค้า: <b>{% if qt.customer %}<a href="/customers/{{ qt.customer_id }}">{{ qt.customer_name }}</a>{% else %}{{ qt.customer_name or "-" }}{% endif %}</b>
+    · ออกเมื่อ {{ t.day }}/{{ t.month }}/{{ t.year + 543 }} โดย {{ author }}
+    · ยืนราคาถึง <b>{{ qt.valid_until.day }}/{{ qt.valid_until.month }}/{{ qt.valid_until.year + 543 }}</b>
+    {% if qt.note %}<br>หมายเหตุ: {{ qt.note }}{% endif %}
+    {% if qt.converted_sale_id %}<br>แปลงเป็นบิลขายแล้ว: <a href="/sales/{{ qt.converted_sale_id }}">ดูบิล</a>{% endif %}</p>
+  <table class="table">
+    <thead><tr><th>สินค้า</th><th class="num">จำนวน</th><th class="num">ราคา/หน่วย</th><th class="num">ส่วนลด</th><th class="num">รวม</th></tr></thead>
+    <tbody>
+    {% for l in qt.lines %}
+      <tr><td>{{ l.product_name_snapshot }}</td><td class="num nowrap">{{ l.qty | qty }} {{ l.unit_name }}</td>
+          <td class="num">{{ l.unit_price | money }}</td><td class="num">{{ l.discount | money if l.discount else "-" }}</td>
+          <td class="num">{{ l.line_total | money }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="totals-box">
+    <div><span>รวม</span><b>{{ qt.subtotal | money }}</b></div>
+    {% if qt.discount %}<div><span>ส่วนลดท้ายบิล</span><b>-{{ qt.discount | money }}</b></div>{% endif %}
+    {% if qt.vat_rate_snapshot %}<div><span>ภาษีมูลค่าเพิ่ม</span><b>{{ qt.vat_amount | money }}</b></div>{% endif %}
+    <div class="grand"><span>ยอดรวม</span><b>{{ qt.total | money }}</b></div>
+  </div>
+</div>
+
+{% if state == "expired" %}
+<form class="card narrow" method="post" action="/quotations/{{ qt.id }}/renew">
+  <h2>ต่ออายุใบเสนอราคา</h2>
+  <p class="hint">ราคายังเป็นราคาเดิมตามใบนี้ ถ้าต้องการราคาใหม่ให้กด "แก้ไข" แทน</p>
+  <label for="days">ยืนราคาอีก (วัน)</label>
+  <input type="number" id="days" name="days" value="7" min="1" max="365" style="max-width: 8rem">
+  <div class="actions"><button type="submit">ต่ออายุ</button></div>
+</form>
+{% endif %}
+{% endblock %}

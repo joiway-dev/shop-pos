@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}ลูกค้า{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">ลูกค้าประจำ / ลูกค้าเงินเชื่อ</p>
+    <h1>ลูกค้า <span class="hint">({{ rows | length }} ราย)</span></h1>
+  </div>
+  <div class="head-actions"><a class="btn secondary" href="/ar">ลูกหนี้ / อายุหนี้</a></div>
+</div>
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<form class="card filter-bar" method="get" action="/customers">
+  <input type="text" name="q" value="{{ q }}" placeholder="ค้นหาชื่อ เบอร์โทร หรือเลขผู้เสียภาษี" aria-label="ค้นหาลูกค้า">
+  {% if user.is_owner %}<label class="check"><input type="checkbox" name="show_inactive" value="true" {% if show_inactive %}checked{% endif %}> แสดงที่ปิดใช้งาน</label>{% endif %}
+  <button type="submit">ค้นหา</button>
+</form>
+
+<div class="grid-2">
+  <div class="card">
+    {% if rows %}
+    <table class="table">
+      <thead><tr><th>ชื่อ</th><th>โทร</th><th class="num">วงเงิน</th><th class="num">ค้างชำระ</th></tr></thead>
+      <tbody>
+      {% for c in rows %}
+        <tr class="{{ '' if c.is_active else 'muted' }}">
+          <td><a href="/customers/{{ c.id }}">{{ c.name }}</a></td>
+          <td>{{ c.phone or "-" }}</td>
+          <td class="num">{{ c.credit_limit | money if c.credit_limit else "-" }}</td>
+          <td class="num {{ 'warn-text' if balances.get(c.id) else '' }}">{{ balances.get(c.id, 0) | money }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="hint">ยังไม่มีลูกค้า</p>{% endif %}
+  </div>
+
+  <form class="card" method="post" action="/customers">
+    <h2>เพิ่มลูกค้า</h2>
+    <label for="c-name">ชื่อลูกค้า / บริษัท</label>
+    <input type="text" id="c-name" name="name" value="{{ form.name }}" maxlength="200" required>
+    <div class="grid-3">
+      <div><label for="c-phone">เบอร์โทร</label><input type="text" id="c-phone" name="phone" value="{{ form.phone }}" maxlength="50"></div>
+      <div><label for="c-tax">เลขผู้เสียภาษี</label><input type="text" id="c-tax" name="tax_id" value="{{ form.tax_id }}" maxlength="17" inputmode="numeric"></div>
+      <div><label for="c-branch">สาขา</label><input type="text" id="c-branch" name="branch" value="{{ form.branch }}" placeholder="ว่าง = สำนักงานใหญ่" maxlength="20"></div>
+    </div>
+    <label for="c-addr">ที่อยู่ <span class="hint">(ใช้พิมพ์ในใบกำกับภาษี/ใบส่งของ)</span></label>
+    <textarea id="c-addr" name="address" rows="2">{{ form.address }}</textarea>
+    {% if user.is_owner %}
+    <div class="grid-3">
+      <div><label for="c-limit">วงเงินเครดิต (บาท)</label><input type="text" id="c-limit" name="credit_limit" value="{{ form.credit_limit }}" inputmode="decimal"></div>
+      <div><label for="c-days">เครดิต (วัน)</label><input type="number" id="c-days" name="credit_days" value="{{ form.credit_days }}" min="0" max="365"></div>
+    </div>
+    <p class="hint">วงเงิน 0 = ไม่ให้เชื่อ (ขายเชื่อต้องใช้ PIN เจ้าของร้านทุกครั้ง)</p>
+    {% else %}
+    <p class="hint">วงเงินและเครดิตวันให้เจ้าของร้านตั้ง</p>
+    {% endif %}
+    <label for="c-note">หมายเหตุ</label>
+    <input type="text" id="c-note" name="note" value="{{ form.note }}" maxlength="500">
+    <div class="actions"><button type="submit">+ เพิ่มลูกค้า</button></div>
+  </form>
+</div>
+{% endblock %}

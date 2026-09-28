@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}ลูกหนี้{% endblock %}
+{% block content %}
+<p class="eyebrow">ลูกค้าเงินเชื่อ</p>
+<h1>ลูกหนี้ / อายุหนี้</h1>
+<p class="subtitle">นับอายุหนี้จากวันที่ออกบิล · "เกินกำหนด" = เลยวันครบกำหนดชำระแล้ว</p>
+
+<div class="stat-row">
+  <div class="stat"><small>ยอดค้างรวม</small><b>฿{{ grand | money }}</b></div>
+  <div class="stat {{ 'stat-warn' if overdue else '' }}"><small>เกินกำหนดชำระ</small><b>฿{{ overdue | money }}</b></div>
+  <div class="stat"><small>จำนวนลูกหนี้</small><b>{{ rows | length }} ราย</b></div>
+</div>
+
+<div class="card">
+  {% if rows %}
+  <table class="table">
+    <thead><tr><th>ลูกค้า</th>{% for l in labels %}<th class="num">{{ l }}</th>{% endfor %}<th class="num">รวม</th><th class="num">เกินกำหนด</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td><a href="/customers/{{ r.customer.id }}">{{ r.customer.name }}</a></td>
+        {% for v in r.buckets %}<td class="num">{{ v | money if v else "-" }}</td>{% endfor %}
+        <td class="num"><b>{{ r.total | money }}</b></td>
+        <td class="num {{ 'badge-danger' if r.overdue else '' }}">{{ r.overdue | money if r.overdue else "-" }}</td>
+        <td class="row-actions"><a class="btn small-btn" href="/ar/pay/{{ r.customer.id }}">รับชำระ</a>
+          <a class="btn secondary small-btn" href="/customers/{{ r.customer.id }}/statement" target="_blank">ใบแจ้งยอด</a></td>
+      </tr>
+    {% endfor %}
+    <tr class="sum-row-table"><td><b>รวม</b></td>{% for v in totals %}<td class="num"><b>{{ v | money }}</b></td>{% endfor %}<td class="num"><b>{{ grand | money }}</b></td><td class="num"><b>{{ overdue | money }}</b></td><td></td></tr>
+    </tbody>
+  </table>
+  {% else %}<p class="hint">ไม่มีลูกหนี้ค้างชำระ</p>{% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}รับชำระหนี้ {{ c.name }}{% endblock %}
+{% block content %}
+<p><a href="/customers/{{ c.id }}">&larr; {{ c.name }}</a></p>
+<p class="eyebrow">ออกใบรับเงิน (RV)</p>
+<h1>รับชำระหนี้ — {{ c.name }}</h1>
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+{% set total_open = bills | sum(attribute="outstanding") %}
+<form class="card" method="post" action="/ar/pay/{{ c.id }}"
+      x-data='{ auto: {{ form.auto | tojson }}, amount: {{ form.amount | string | tojson }} }'>
+  <div class="stat-row">
+    <div class="stat"><small>ยอดค้างทั้งหมด</small><b>฿{{ total_open | money }}</b></div>
+  </div>
+  {% if bills %}
+  <div class="grid-3">
+    <div>
+      <label for="amount">ยอดที่รับ (บาท)</label>
+      <input type="text" id="amount" name="amount" x-model="amount" inputmode="decimal" required class="cash-input" autofocus>
+      <button type="button" class="small secondary" style="margin-top: 0.4rem" @click="amount = '{{ total_open | money_input }}'">รับเต็มจำนวน</button>
+    </div>
+    <div>
+      <label for="method">วิธีรับ</label>
+      <select id="method" name="method">
+        {% for k, v in methods.items() %}<option value="{{ k }}" {% if form.method == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="note">หมายเหตุ <span class="hint">(เช่น เลขเช็ค / วันที่เช็ค)</span></label>
+      <input type="text" id="note" name="note" value="{{ form.note }}" maxlength="500">
+    </div>
+  </div>
+
+  <label class="check" style="margin-top: 1rem"><input type="checkbox" name="auto" value="true" x-model="auto"> ตัดบิลเก่าสุดก่อนอัตโนมัติ</label>
+  <table class="table">
+    <thead><tr><th>เลขที่</th><th>วันที่</th><th class="num">ค้าง</th><th x-show="!auto">ตัดบิลนี้ (บาท)</th></tr></thead>
+    <tbody>
+    {% for b in bills %}
+      {% set t = to_local(b.sale.created_at) %}
+      <tr>
+        <td><a href="/sales/{{ b.sale.id }}" target="_blank">{{ b.sale.doc_no }}</a>{% if b.overdue %} <span class="badge-danger">เกินกำหนด</span>{% endif %}</td>
+        <td>{{ t.day }}/{{ t.month }}/{{ t.year + 543 }} <small class="hint">({{ b.age_days }} วัน)</small></td>
+        <td class="num">{{ b.outstanding | money }}</td>
+        <td x-show="!auto"><input type="text" name="alloc_{{ b.sale.id }}" value="{{ form.alloc.get(b.sale.id, '') }}" inputmode="decimal" style="max-width: 9rem" aria-label="ตัดบิล {{ b.sale.doc_no }}"></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="hint" x-show="!auto">ยอดที่ตัดแต่ละบิลรวมกันต้องเท่ากับยอดที่รับ</p>
+  <div class="actions"><button type="submit">บันทึกรับชำระ + ออกใบรับเงิน</button></div>
+  {% else %}
+  <p class="hint">ลูกค้ารายนี้ไม่มียอดค้าง</p>
+  {% endif %}
+</form>
+{% endblock %}

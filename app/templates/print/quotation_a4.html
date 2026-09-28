@@ -1,0 +1,45 @@
+{% extends "print/_a4_base.html" %}
+{% from "print/_common.html" import branch_text, thai_datetime %}
+{% set page_title = qt.doc_no %}
+{% block doc_head %}
+<h1>ใบเสนอราคา</h1>
+เลขที่ <b>{{ qt.doc_no }}</b><br>
+วันที่ {{ issued_at.day }}/{{ "%02d" | format(issued_at.month) }}/{{ issued_at.year + 543 }}<br>
+ยืนราคาถึง <b>{{ qt.valid_until.day }}/{{ "%02d" | format(qt.valid_until.month) }}/{{ qt.valid_until.year + 543 }}</b>
+{% endblock %}
+{% block body %}
+<div class="box">
+  <b>เรียน:</b> {{ buyer.name if buyer else "-" }}<br>
+  {% if buyer and buyer.address %}<b>ที่อยู่:</b> {{ buyer.address | replace("\n", " ") }}<br>{% endif %}
+  {% if buyer and buyer.tax_id %}<b>เลขประจำตัวผู้เสียภาษี:</b> {{ buyer.tax_id }} · {{ branch_text(buyer.branch_no) }}<br>{% endif %}
+  {% if buyer and buyer.phone %}<b>โทร:</b> {{ buyer.phone }}{% endif %}
+</div>
+<p>ทางร้านยินดีเสนอราคาสินค้าดังรายการต่อไปนี้</p>
+<table class="items">
+  <thead><tr><th class="center">ลำดับ</th><th style="text-align:left">รายการ</th><th class="num">จำนวน</th><th class="num">ราคา/หน่วย</th><th class="num">ส่วนลด</th><th class="num">จำนวนเงิน</th></tr></thead>
+  <tbody>
+  {% for l in qt.lines %}
+    <tr><td class="center">{{ loop.index }}</td><td>{{ l.product_name_snapshot }}</td>
+        <td class="num">{{ l.qty | qty }} {{ l.unit_name }}</td><td class="num">{{ l.unit_price | money }}</td>
+        <td class="num">{{ l.discount | money if l.discount else "" }}</td><td class="num">{{ l.line_total | money }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<div class="sum">
+  <div class="words">({{ baht_text }})
+    {% if is_vat and shop.price_includes_vat %}<br><small>ราคารวมภาษีมูลค่าเพิ่มแล้ว</small>{% endif %}
+    {% if qt.note %}<br>หมายเหตุ: {{ qt.note }}{% endif %}
+  </div>
+  <table class="totals">
+    <tr><td>รวมเป็นเงิน</td><td class="num">{{ qt.subtotal | money }}</td></tr>
+    {% if qt.discount %}<tr><td>ส่วนลด</td><td class="num">-{{ qt.discount | money }}</td></tr>{% endif %}
+    {% if is_vat %}
+    <tr><td>มูลค่าสินค้าก่อนภาษี</td><td class="num">{{ qt.vatable_amount | money }}</td></tr>
+    <tr><td>ภาษีมูลค่าเพิ่ม {{ "%.2f" | format(vat_rate) }}%</td><td class="num">{{ qt.vat_amount | money }}</td></tr>
+    {% endif %}
+    <tr class="grand"><td>ยอดรวมทั้งสิ้น</td><td class="num">{{ qt.total | money }}</td></tr>
+  </table>
+</div>
+<p style="margin-top: 6mm">เอกสารนี้ไม่ใช่ใบกำกับภาษี</p>
+<div class="signs"><div>ผู้อนุมัติสั่งซื้อ</div><div>ผู้เสนอราคา ({{ author }})</div></div>
+{% endblock %}

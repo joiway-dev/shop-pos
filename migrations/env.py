@@ -36,13 +36,25 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     engine = create_db_engine(_db_url())
     with engine.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            render_as_batch=True,  # SQLite needs batch mode for ALTER TABLE
-        )
-        with context.begin_transaction():
-            context.run_migrations()
+        # Batch mode rebuilds tables (copy -> drop -> rename). With foreign keys
+        # on, dropping a table that other rows point to fails, so switch them
+        # off for the migration (must happen outside a transaction) and verify
+        # every reference afterwards before committing.
+        raw = connection.connection.driver_connection
+        raw.execute("PRAGMA foreign_keys=OFF")
+        try:
+            context.configure(
+                connection=connection,
+                target_metadata=target_metadata,
+                render_as_batch=True,  # SQLite needs batch mode for ALTER TABLE
+            )
+            with context.begin_transaction():
+                context.run_migrations()
+                broken = connection.exec_driver_sql("PRAGMA foreign_key_check").fetchall()
+                if broken:
+                    raise RuntimeError(f"foreign key check failed after migration: {broken[:5]}")
+        finally:
+            raw.execute("PRAGMA foreign_keys=ON")
     engine.dispose()
 
 

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}{{ c.name }}{% endblock %}
+{% block content %}
+<p><a href="/customers">&larr; ลูกค้า</a></p>
+<div class="page-head">
+  <div>
+    <p class="eyebrow">ลูกค้า{% if not c.is_active %} · ปิดใช้งาน{% endif %}</p>
+    <h1>{{ c.name }}</h1>
+  </div>
+  <div class="head-actions">
+    <a class="btn" href="/pos?customer={{ c.id }}">เปิดบิลขาย</a>
+    {% if balance %}<a class="btn" href="/ar/pay/{{ c.id }}">รับชำระหนี้</a>{% endif %}
+    <a class="btn secondary" href="/pos?mode=quote&customer={{ c.id }}">ทำใบเสนอราคา</a>
+    <a class="btn secondary" href="/customers/{{ c.id }}/statement" target="_blank">พิมพ์ใบแจ้งยอด</a>
+  </div>
+</div>
+{% if done == "created" %}<div class="alert alert-ok">เพิ่มลูกค้าแล้ว</div>{% elif done %}<div class="alert alert-ok">บันทึกแล้ว</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<div class="stat-row">
+  <div class="stat {{ 'stat-warn' if balance > c.credit_limit and c.credit_limit else '' }}"><small>ยอดค้างชำระ</small><b>฿{{ balance | money }}</b></div>
+  <div class="stat"><small>วงเงินเครดิต</small><b>{{ "฿" ~ (c.credit_limit | money) if c.credit_limit else "ไม่ให้เชื่อ" }}</b></div>
+  <div class="stat"><small>เครดิต</small><b>{{ c.credit_days }} วัน</b></div>
+</div>
+
+<div class="card">
+  <h2>บิลค้างชำระ</h2>
+  {% if bills %}
+  <table class="table">
+    <thead><tr><th>เลขที่</th><th>วันที่</th><th>ครบกำหนด</th><th class="num">ยอดบิล</th><th class="num">ชำระแล้ว</th><th class="num">ค้าง</th></tr></thead>
+    <tbody>
+    {% for b in bills %}
+      {% set t = to_local(b.sale.created_at) %}
+      <tr>
+        <td><a href="/sales/{{ b.sale.id }}">{{ b.sale.doc_no }}</a></td>
+        <td class="nowrap">{{ t.day }}/{{ t.month }}/{{ t.year + 543 }} <small class="hint">({{ b.age_days }} วัน)</small></td>
+        <td class="nowrap {{ 'badge-danger' if b.overdue else '' }}">{% if b.sale.due_date %}{{ b.sale.due_date.day }}/{{ b.sale.due_date.month }}/{{ b.sale.due_date.year + 543 }}{% if b.overdue %} เกินกำหนด{% endif %}{% endif %}</td>
+        <td class="num">{{ b.sale.total | money }}</td>
+        <td class="num">{{ b.paid | money }}</td>
+        <td class="num"><b>{{ b.outstanding | money }}</b></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="hint">ไม่มียอดค้าง</p>{% endif %}
+</div>
+
+{% if payments %}
+<div class="card">
+  <h2>ประวัติรับชำระ</h2>
+  <table class="table">
+    <thead><tr><th>เลขที่</th><th>วันที่</th><th class="num">ยอด</th><th>สถานะ</th></tr></thead>
+    <tbody>
+    {% for p in payments %}
+      {% set t = to_local(p.created_at) %}
+      <tr class="{{ 'muted' if p.status == 'voided' else '' }}">
+        <td><a href="/ar/payments/{{ p.id }}">{{ p.doc_no }}</a></td>
+        <td>{{ t.day }}/{{ t.month }}/{{ t.year + 543 }}</td>
+        <td class="num">{{ p.amount | money }}</td>
+        <td>{{ "ยกเลิก" if p.status == "voided" else "ปกติ" }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<form class="card" method="post" action="/customers/{{ c.id }}">
+  <h2>ข้อมูลลูกค้า</h2>
+  <label for="c-name">ชื่อลูกค้า / บริษัท</label>
+  <input type="text" id="c-name" name="name" value="{{ form.name }}" maxlength="200" required>
+  <div class="grid-3">
+    <div><label for="c-phone">เบอร์โทร</label><input type="text" id="c-phone" name="phone" value="{{ form.phone }}" maxlength="50"></div>
+    <div><label for="c-tax">เลขผู้เสียภาษี</label><input type="text" id="c-tax" name="tax_id" value="{{ form.tax_id }}" maxlength="17" inputmode="numeric"></div>
+    <div><label for="c-branch">สาขา</label><input type="text" id="c-branch" name="branch" value="{{ form.branch }}" placeholder="ว่าง = สำนักงานใหญ่" maxlength="20"></div>
+  </div>
+  <label for="c-addr">ที่อยู่</label>
+  <textarea id="c-addr" name="address" rows="2">{{ form.address }}</textarea>
+  {% if user.is_owner %}
+  <div class="grid-3">
+    <div><label for="c-limit">วงเงินเครดิต (บาท)</label><input type="text" id="c-limit" name="credit_limit" value="{{ form.credit_limit }}" inputmode="decimal"></div>
+    <div><label for="c-days">เครดิต (วัน)</label><input type="number" id="c-days" name="credit_days" value="{{ form.credit_days }}" min="0" max="365"></div>
+  </div>
+  {% endif %}
+  <label for="c-note">หมายเหตุ</label>
+  <input type="text" id="c-note" name="note" value="{{ form.note }}" maxlength="500">
+  <div class="actions"><button type="submit">บันทึก</button></div>
+</form>
+
+{% if user.is_owner %}
+<form method="post" action="/customers/{{ c.id }}/active" class="card narrow">
+  <input type="hidden" name="active" value="{{ 'false' if c.is_active else 'true' }}">
+  <p class="hint">ปิดใช้งาน = ไม่แสดงในการค้นหาตอนขาย ข้อมูลและบิลเก่ายังอยู่ครบ</p>
+  <button type="submit" class="{{ 'danger' if c.is_active else 'secondary' }}">{{ "ปิดใช้งานลูกค้า" if c.is_active else "เปิดใช้งานลูกค้า" }}</button>
+</form>
+{% endif %}
+{% endblock %}

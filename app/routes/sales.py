@@ -6,9 +6,9 @@ from fastapi.responses import RedirectResponse
 
 from app.models import User
 from app.routes.deps import DB, CurrentUser
-from app.services import sales
+from app.services import receivables, sales
 from app.services.clock import to_local
-from app.services.documents import DEFAULT_FORMAT, TITLES
+from app.services.documents import DEFAULT_FORMAT, TITLES, title_for
 from app.services.thai_text import baht_text
 from app.templating import templates
 
@@ -45,8 +45,9 @@ def sale_detail(request: Request, db: DB, user: CurrentUser, sale_id: int, error
     sale = _get(db, sale_id)
     names = {u.id: u.name for u in db.query(User).filter(User.id.in_([sale.user_id, sale.voided_by or 0]))}
     return templates.TemplateResponse(request, "sales/detail.html", {
-        "user": user, "sale": sale, "title": TITLES[sale.doc_type], "to_local": to_local, "names": names,
+        "user": user, "sale": sale, "title": title_for(sale.doc_type, sale.shop_snapshot.get("vat_mode")), "to_local": to_local, "names": names,
         "default_format": DEFAULT_FORMAT.get(sale.doc_type, "80mm"), "error": error, "done": done,
+        "paid": receivables.sale_paid(db, sale.id) if sale.payment_type == "credit" else 0,
     })
 
 
@@ -71,8 +72,9 @@ def sale_void(
         sale = _get(db, sale_id)
         names = {u.id: u.name for u in db.query(User).filter(User.id.in_([sale.user_id]))}
         return templates.TemplateResponse(request, "sales/detail.html", {
-            "user": user, "sale": sale, "title": TITLES[sale.doc_type], "to_local": to_local, "names": names,
+            "user": user, "sale": sale, "title": title_for(sale.doc_type, sale.shop_snapshot.get("vat_mode")), "to_local": to_local, "names": names,
             "default_format": DEFAULT_FORMAT.get(sale.doc_type, "80mm"), "error": str(e), "reason": reason,
+            "paid": receivables.sale_paid(db, sale.id) if sale.payment_type == "credit" else 0,
         }, status_code=400)
     return RedirectResponse(f"/sales/{sale_id}?done=voided", status_code=303)
 
@@ -86,7 +88,7 @@ def sale_print(request: Request, db: DB, user: CurrentUser, sale_id: int, format
     cashier = db.get(User, sale.user_id)
     template = "print/receipt_80mm.html" if fmt == "80mm" else "print/a4.html"
     return templates.TemplateResponse(request, template, {
-        "sale": sale, "shop": sale.shop_snapshot, "buyer": sale.buyer_snapshot, "title": TITLES[sale.doc_type],
+        "sale": sale, "shop": sale.shop_snapshot, "buyer": sale.buyer_snapshot, "title": title_for(sale.doc_type, sale.shop_snapshot.get("vat_mode")),
         "is_copy": is_copy, "voided": sale.status == "voided", "issued_at": to_local(sale.created_at),
         "cashier": cashier.name if cashier else "", "baht_text": baht_text(sale.total),
         "is_vat": sale.shop_snapshot.get("vat_mode") == "vat", "vat_rate": sale.vat_rate_snapshot / 100,

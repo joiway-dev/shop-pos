@@ -100,7 +100,7 @@ def test_cash_defaults_to_exact_amount(db, owner, products):
 
 @pytest.mark.parametrize("kw,message", [
     ({"cash_received": "100"}, "รับเงินไม่พอ"),
-    ({"payment_type": "credit"}, "เฟส 4"),
+    ({"payment_type": "credit"}, "ต้องเลือกลูกค้า"),
     ({"payment_type": "cheque"}, "วิธีชำระ"),
     ({"bill_discount": "99999"}, "ส่วนลด"),
 ])
@@ -175,7 +175,7 @@ def test_cashier_discount_needs_owner_pin(db, owner, cashier, products):
     sale = checkout(db, cashier, lines, owner_pin=OWNER_PIN)
     assert (sale.lines[0].discount, sale.total) == (7250, 137750)
     log = db.scalars(select(AuditLog).where(AuditLog.action == "sale_create")).one()
-    assert log.detail["discount_approved_by"] == owner.id
+    assert log.detail["approved_by"] == owner.id
 
 
 def test_owner_discount_needs_no_pin(db, owner, products):

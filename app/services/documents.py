@@ -41,21 +41,32 @@ TITLES = {
 }
 
 # Default paper per document type (SPEC phase 2).
-DEFAULT_FORMAT = {DOC_RC: "80mm", DOC_ABB: "80mm", DOC_TAX: "a4", DOC_DN: "a4", DOC_QT: "a4", DOC_CN: "a4"}
+DEFAULT_FORMAT = {DOC_RC: "80mm", DOC_ABB: "80mm", DOC_TAX: "a4", DOC_DN: "a4", DOC_QT: "a4", DOC_CN: "a4", DOC_RV: "a4"}
 
 
 class DocumentError(ValueError):
     pass
 
 
-def sale_doc_type(settings: ShopSetting, has_buyer: bool) -> str:
+def title_for(doc_type: str, vat_mode: str | None) -> str:
+    """Printed title. A VAT-registered shop's credit sale is also its tax invoice
+    (tax point = delivery), so the DN title says so (owner decision)."""
+    if doc_type == DOC_DN and vat_mode == VAT_MODE_VAT:
+        return "ใบส่งของ/ใบแจ้งหนี้/ใบกำกับภาษี"
+    return TITLES[doc_type]
+
+
+def sale_doc_type(settings: ShopSetting, has_buyer: bool, credit: bool = False) -> str:
     """Which document a cash/transfer sale produces.
 
     - not VAT registered: receipt (RC)
     - VAT registered + buyer details: full tax invoice (TAX)
     - VAT registered, no buyer: abbreviated invoice (ABB) only when the owner
       enabled it; otherwise buyer details are required (owner decision).
+    - credit sale: delivery note / invoice (DN), always with a customer
     """
+    if credit:
+        return DOC_DN
     if settings.vat_mode != VAT_MODE_VAT:
         return DOC_RC
     if has_buyer:

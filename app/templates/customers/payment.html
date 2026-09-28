@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "_void_form.html" import void_form %}
+{% block title %}{{ p.doc_no }}{% endblock %}
+{% block content %}
+{% set t = to_local(p.created_at) %}
+<p><a href="/customers/{{ p.customer_id }}">&larr; {{ p.customer.name }}</a></p>
+<div class="page-head">
+  <div>
+    <p class="eyebrow">ใบรับเงิน</p>
+    <h1>{{ p.doc_no }} {% if p.status == "voided" %}<span class="status status-not_found">ยกเลิก</span>{% endif %}</h1>
+  </div>
+  <div class="head-actions"><a class="btn" href="/ar/payments/{{ p.id }}/print" target="_blank">พิมพ์ใบรับเงิน</a></div>
+</div>
+{% if done == "created" %}<div class="alert alert-ok">บันทึกรับชำระแล้ว</div>{% endif %}
+{% if done == "voided" %}<div class="alert alert-ok">ยกเลิกใบรับเงินแล้ว บิลที่เคยตัดกลับมาค้างชำระ</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <p>รับเมื่อ {{ t.day }}/{{ t.month }}/{{ t.year + 543 }} {{ t.strftime("%H:%M") }} โดย {{ names.get(p.user_id, "-") }}
+    · {{ methods[p.method] }}{% if p.note %} · {{ p.note }}{% endif %}</p>
+  <table class="table">
+    <thead><tr><th>ตัดบิล</th><th class="num">ยอดบิล</th><th class="num">ตัดชำระ</th></tr></thead>
+    <tbody>
+    {% for a in p.allocations %}
+      <tr><td><a href="/sales/{{ a.sale_id }}">{{ sales[a.sale_id].doc_no }}</a></td>
+          <td class="num">{{ sales[a.sale_id].total | money }}</td><td class="num">{{ a.amount | money }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="totals-box"><div class="grand"><span>รวมรับชำระ</span><b>{{ p.amount | money }}</b></div></div>
+</div>
+
+{% if p.status == "voided" %}
+<div class="card"><h2>ยกเลิกแล้ว</h2><p>เหตุผล: {{ p.void_reason }} · อนุมัติโดย {{ names.get(p.voided_by, "-") }}</p></div>
+{% else %}
+<div class="card narrow">
+  <h2>ยกเลิกใบรับเงิน</h2>
+  <p class="hint">บิลที่ใบนี้ตัดจะกลับมาเป็นค้างชำระ — ต้องใช้ PIN เจ้าของร้าน</p>
+  {{ void_form("/ar/payments/%d/void" % p.id, p.doc_no, "ยกเลิกใบรับเงิน",
+               "ยอดที่ตัดบิลจะถูกคืนเป็นหนี้ค้างของลูกค้า — ทำย้อนกลับไม่ได้ ถ้ารับผิดให้บันทึกรับชำระใหม่") }}
+</div>
+{% endif %}
+{% endblock %}

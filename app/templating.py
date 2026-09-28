@@ -35,6 +35,15 @@ def _code_mtime() -> float:
 
 
 _STARTED_CODE_MTIME = _code_mtime()
+
+
+def _static_version() -> str:
+    """Changes whenever a CSS/JS file changes, so browsers fetch the new file
+    after a program update instead of using a cached copy."""
+    newest = max((f.stat().st_mtime for f in (APP_DIR / "static").rglob("*") if f.suffix in (".css", ".js")), default=0)
+    return str(int(newest))
+
+
 _update_check = {"at": 0.0, "outdated": False}
 
 
@@ -73,6 +82,7 @@ def _layout_context(request: Request) -> dict:
 
 templates = Jinja2Templates(directory=APP_DIR / "templates", context_processors=[_layout_context])
 templates.env.globals["app_version"] = __version__
+templates.env.globals["static_v"] = _static_version()
 templates.env.filters["money"] = format_money
 templates.env.filters["money_input"] = format_money_input
 templates.env.filters["qty"] = format_qty

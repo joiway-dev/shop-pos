@@ -9,7 +9,7 @@
     // Apply saved theme before paint (per-browser preference only).
     try { if (localStorage.getItem("theme") === "dark") document.documentElement.dataset.theme = "dark"; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="stylesheet" href="/static/css/app.css?v={{ static_v }}">
   <script src="/static/vendor/htmx.min.js"></script>
   <script defer src="/static/vendor/alpine.min.js"></script>
 </head>
@@ -21,6 +21,9 @@
   ("/", "หน้าหลัก", "home", 0),
   ("/products", "สินค้า", "box", 0),
   ("/stock", "สต็อกสินค้า", "layers", low_stock_count),
+  ("/customers", "ลูกค้า", "users", 0),
+  ("/ar", "ลูกหนี้ / รับชำระ", "clipboard", 0),
+  ("/quotations", "ใบเสนอราคา", "tag", 0),
 ] -%}
 {%- if user.may_receive_stock -%}
   {%- set nav_main = nav_main + [("/purchases", "รับสินค้าเข้า", "truck", pending_cost_count if user.may_see_cost else 0)] -%}

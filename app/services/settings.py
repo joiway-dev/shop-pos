@@ -57,6 +57,15 @@ def get_shop_settings(db: Session) -> ShopSetting:
     return row
 
 
+def shop_snapshot(s: ShopSetting) -> dict:
+    """Shop details copied into every issued document (reprints never change)."""
+    return {
+        "name": s.shop_name, "address": s.address, "phone": s.phone, "tax_id": s.tax_id,
+        "branch_no": s.branch_no, "vat_mode": s.vat_mode, "price_includes_vat": s.price_includes_vat,
+        "logo_filename": s.logo_filename,
+    }
+
+
 def is_valid_thai_tax_id(tax_id: str) -> bool:
     """13-digit Thai tax ID with its mod-11 check digit."""
     if not re.fullmatch(r"[0-9]{13}", tax_id):

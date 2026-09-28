@@ -1,0 +1,38 @@
+{% extends "print/_a4_base.html" %}
+{% from "print/_common.html" import branch_text %}
+{% set page_title = "ใบแจ้งยอด " ~ c.name %}
+{% block doc_head %}
+<h1>ใบแจ้งยอดค้างชำระ</h1>
+ณ วันที่ {{ today.day }}/{{ "%02d" | format(today.month) }}/{{ today.year + 543 }}
+{% endblock %}
+{% block body %}
+<div class="box">
+  <b>เรียน:</b> {{ c.name }}<br>
+  {% if c.address %}<b>ที่อยู่:</b> {{ c.address | replace("\n", " ") }}<br>{% endif %}
+  {% if c.phone %}<b>โทร:</b> {{ c.phone }}{% endif %}
+  {% if c.credit_days %} · เครดิต {{ c.credit_days }} วัน{% endif %}
+</div>
+{% if bills %}
+<table class="items">
+  <thead><tr><th class="center">ลำดับ</th><th style="text-align:left">เลขที่เอกสาร</th><th>วันที่</th><th>ครบกำหนด</th><th class="num">ยอดเอกสาร</th><th class="num">ชำระแล้ว</th><th class="num">คงค้าง</th></tr></thead>
+  <tbody>
+  {% for b in bills %}
+    {% set t = to_local(b.sale.created_at) %}
+    <tr><td class="center">{{ loop.index }}</td><td>{{ b.sale.doc_no }}</td>
+        <td>{{ t.day }}/{{ "%02d" | format(t.month) }}/{{ t.year + 543 }}</td>
+        <td>{% if b.sale.due_date %}{{ b.sale.due_date.day }}/{{ "%02d" | format(b.sale.due_date.month) }}/{{ b.sale.due_date.year + 543 }}{% if b.overdue %} (เกินกำหนด){% endif %}{% endif %}</td>
+        <td class="num">{{ b.sale.total | money }}</td><td class="num">{{ b.paid | money }}</td><td class="num">{{ b.outstanding | money }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<div class="sum">
+  <table class="totals" style="min-width: 110mm">
+    {% for (label, _, _), amount in buckets %}<tr><td>อายุ {{ label }}</td><td class="num">{{ amount | money }}</td></tr>{% endfor %}
+  </table>
+  <table class="totals"><tr class="grand"><td>ยอดค้างชำระทั้งสิ้น</td><td class="num">{{ total | money }}</td></tr></table>
+</div>
+{% else %}
+<p>ไม่มียอดค้างชำระ ขอบคุณที่ใช้บริการ</p>
+{% endif %}
+<p style="margin-top: 8mm">หากชำระแล้ว ขออภัยและโปรดแจ้งทางร้าน</p>
+{% endblock %}

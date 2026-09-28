@@ -5,11 +5,11 @@ from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.models import Category, Product
+from app.models import Category, Customer, Product
 from app.models.settings import VAT_MODE_VAT
 from app.routes.deps import DB, CurrentUser
-from app.services import catalog, sales, stock
-from app.services.documents import DEFAULT_FORMAT, TITLES
+from app.services import catalog, customers, quotations, receivables, sales, stock
+from app.services.documents import DEFAULT_FORMAT, title_for
 from app.services.matching import learning, matcher, order_parser
 from app.services.matching.normalize import canonical_unit
 from app.services.money import format_money, format_qty, format_qty_input
@@ -36,7 +36,8 @@ def _grid_products(db, category_id: int | None, q: str):
 
 
 @router.get("")
-def pos_page(request: Request, db: DB, user: CurrentUser, reissue: int | None = None):
+def pos_page(request: Request, db: DB, user: CurrentUser, reissue: int | None = None, mode: str = "sale",
+             edit: int | None = None, from_quote: int | None = None, customer: int | None = None):
     settings = get_shop_settings(db)
     categories = [c for c in catalog.list_categories(db, include_inactive=False)]
     return templates.TemplateResponse(request, "pos/pos.html", {
@@ -48,6 +49,10 @@ def pos_page(request: Request, db: DB, user: CurrentUser, reissue: int | None = 
             "vat": settings.vat_mode == VAT_MODE_VAT,
             "buyerRequired": settings.vat_mode == VAT_MODE_VAT and not settings.allow_abbreviated_invoice,
             "reissue": reissue,
+            "mode": "quote" if mode == "quote" else "sale",
+            "editQuote": edit,
+            "fromQuote": from_quote,
+            "customer": _customer_json(db, db.get(Customer, customer)) if customer else None,
         },
     })
 
@@ -147,6 +152,8 @@ class CartLine(BaseModel):
 class QuoteBody(BaseModel):
     lines: list[CartLine] = []
     bill_discount: str = ""
+    customer_id: int | None = None
+    quotation_id: int | None = None
 
 
 class Buyer(BaseModel):
@@ -168,11 +175,55 @@ def _cart(lines: list[CartLine]) -> list[sales.CartLineInput]:
     return [sales.CartLineInput(l.product_id, l.unit_id, l.qty, l.discount) for l in lines]
 
 
+def _customer_json(db, c: Customer | None) -> dict | None:
+    if c is None or not c.is_active:
+        return None
+    balance = receivables.customer_balance(db, c.id)
+    return {
+        "id": c.id, "name": c.name, "phone": c.phone, "has_address": bool(c.address.strip()),
+        "balance": balance, "balance_text": format_money(balance),
+        "credit_limit": c.credit_limit, "credit_limit_text": format_money(c.credit_limit),
+        "credit_days": c.credit_days,
+    }
+
+
+@router.get("/customers")
+def pos_customers(db: DB, _user: CurrentUser, q: str = ""):
+    return [_customer_json(db, c) for c in customers.search_customers(db, q, limit=20)]
+
+
+@router.get("/quotation/{quotation_id}")
+def pos_load_quotation(db: DB, _user: CurrentUser, quotation_id: int):
+    """Lines of a quotation, to edit it (mode=quote) or to sell it (from_quote)."""
+    qt = quotations.get_quotation(db, quotation_id)
+    if qt is None:
+        raise HTTPException(status_code=404)
+    state = quotations.status_of(qt)
+    return {
+        "id": qt.id, "doc_no": qt.doc_no, "state": state, "customer_name": qt.customer_name,
+        "customer": _customer_json(db, qt.customer), "bill_discount": qt.bill_discount_text,
+        "valid_days": max(1, (qt.valid_until - qt.created_at.date()).days), "note": qt.note,
+        "lines": [{"product_id": l.product_id, "unit_id": l.unit_id, "qty": format_qty_input(l.qty),
+                   "discount": l.discount_text} for l in qt.lines if l.unit_id],
+    }
+
+
 @router.post("/quote")
 def pos_quote(db: DB, user: CurrentUser, body: QuoteBody):
-    q = sales.quote(db, _cart(body.lines), body.bill_discount)
+    settings = get_shop_settings(db)
+    if body.quotation_id:
+        qt = quotations.get_quotation(db, body.quotation_id)
+        if qt is None:
+            raise HTTPException(status_code=404)
+        q = sales.quote_from_quotation(db, qt, settings)
+    else:
+        q = sales.build_quote(db, _cart(body.lines), body.bill_discount, settings)
     t = q.totals
+    cust = _customer_json(db, db.get(Customer, body.customer_id)) if body.customer_id else None
+    over_limit = bool(cust and t and cust["balance"] + t.total > cust["credit_limit"])
     return {
+        "customer": cust,
+        "over_limit": over_limit,
         "ok": q.ok,
         "errors": q.errors,
         "lines": [{
@@ -189,6 +240,8 @@ def pos_quote(db: DB, user: CurrentUser, body: QuoteBody):
             "total": t.total, "total_text": format_money(t.total),
         },
         "needs_owner_pin": q.has_discount and not user.is_owner,
+        "discount_pin": q.has_discount and not user.is_owner,
+        "credit_pin": over_limit and not user.is_owner,
     }
 
 
@@ -199,6 +252,7 @@ def pos_checkout(db: DB, user: CurrentUser, body: CheckoutBody):
         cash_received=body.cash_received,
         buyer=sales.BuyerInput(**body.buyer.model_dump()) if body.buyer else None,
         owner_pin=body.owner_pin, replaces_sale_id=body.replaces_sale_id,
+        customer_id=body.customer_id, quotation_id=body.quotation_id,
     )
     try:
         sale = sales.create_sale(db, user, data)
@@ -210,7 +264,7 @@ def pos_checkout(db: DB, user: CurrentUser, body: CheckoutBody):
             db.rollback()
         return {"ok": False, "error": str(e), "pin_failed": e.pin_failed}
     return {
-        "ok": True, "sale_id": sale.id, "doc_no": sale.doc_no, "doc_title": TITLES[sale.doc_type],
+        "ok": True, "sale_id": sale.id, "doc_no": sale.doc_no, "doc_title": title_for(sale.doc_type, sale.shop_snapshot.get("vat_mode")),
         "total_text": format_money(sale.total),
         "change_text": format_money(sale.change_amount) if sale.change_amount is not None else None,
         "default_format": DEFAULT_FORMAT.get(sale.doc_type, "80mm"),

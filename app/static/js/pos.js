@@ -2,7 +2,7 @@
 // discount text; every price and total comes from the server (/pos/quote).
 "use strict";
 
-const STORAGE_KEY = "pos-carts-v1";
+const STORAGE_KEYS = { sale: "pos-carts-v1", quote: "pos-quote-carts-v1" };
 
 function toMilli(text) {
   const n = Number(String(text).replace(/,/g, "").trim());
@@ -47,15 +47,20 @@ function posApp(config) {
     highlight: -1,
     remember: true,
     toast: "",
-    modal: null, // "paste" | "pay" | "done"
+    modal: null, // "paste" | "pay" | "done" | "savequote"
+    custSearch: "",
+    custResults: [],
+    qsave: { customer_name: "", valid_days: 7, note: "", pin: "", error: "", busy: false },
     paste: { text: "", rows: [], loading: false, remember: true, error: "" },
     pay: { type: "cash", cash: "", buyer: { name: "", address: "", tax_id: "", branch: "" }, wantBuyer: false, pin: "", error: "", busy: false },
     done: null,
 
     // ---- lifecycle ------------------------------------------------------------
+    get isQuote() { return this.config.mode === "quote"; },
+    get storageKey() { return STORAGE_KEYS[this.isQuote ? "quote" : "sale"]; },
     init() {
       try {
-        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+        const saved = JSON.parse(localStorage.getItem(this.storageKey) || "null");
         if (saved && Array.isArray(saved.carts) && saved.carts.length) {
           this.carts = saved.carts;
           this.active = Math.min(saved.active || 0, saved.carts.length - 1);
@@ -63,20 +68,25 @@ function posApp(config) {
       } catch (e) { /* storage unavailable: start fresh */ }
       if (!this.carts.length) this.newCart();
       if (this.config.reissue) this.loadReissue(this.config.reissue);
+      if (this.config.fromQuote) this.loadQuotation(this.config.fromQuote, "sell");
+      if (this.config.editQuote) this.loadQuotation(this.config.editQuote, "edit");
+      if (this.config.customer) { this.newCart(); this.cart.customer = this.config.customer; history.replaceState(null, "", location.pathname + (this.isQuote ? "?mode=quote" : "")); }
       this.refresh();
       this.$nextTick(() => this.$refs.search && this.$refs.search.focus());
     },
     save() {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ carts: this.carts, active: this.active })); } catch (e) {}
+      try { localStorage.setItem(this.storageKey, JSON.stringify({ carts: this.carts, active: this.active })); } catch (e) {}
     },
     get cart() { return this.carts[this.active]; },
     get lines() { return this.cart ? this.cart.lines : []; },
     get totals() { return this.quote && this.quote.totals; },
     get canPay() { return this.lines.length > 0 && this.quote && this.quote.ok; },
+    get locked() { return !!(this.cart && this.cart.quotationId); },
 
     // ---- carts (held bills, kept on this computer only) ------------------------
     newCart() {
-      this.carts.push({ label: nowLabel(), lines: [], bill_discount: "", replaces: null, replacesDoc: "" });
+      this.carts.push({ label: nowLabel(), lines: [], bill_discount: "", replaces: null, replacesDoc: "",
+                        customer: null, quotationId: null, quoteDoc: "", editQuoteId: null, quoteMeta: null });
       this.active = this.carts.length - 1;
       this.refresh();
     },
@@ -92,12 +102,13 @@ function posApp(config) {
     clearCart() {
       if (!this.lines.length) return;
       if (!confirm("ล้างรายการในบิลนี้ทั้งหมด?")) return;
-      Object.assign(this.cart, { lines: [], bill_discount: "", replaces: null, replacesDoc: "" });
+      Object.assign(this.cart, { lines: [], bill_discount: "", replaces: null, replacesDoc: "", quotationId: null, quoteDoc: "" });
       this.refresh();
     },
 
     // ---- cart lines --------------------------------------------------------------
     add(productId, unitId, qty = "1") {
+      if (this.locked) { this.flash("บิลนี้ขายตามใบเสนอราคา แก้รายการไม่ได้"); return; }
       const existing = this.lines.find((l) => l.product_id === productId && l.unit_id === unitId && !l.discount);
       if (existing) {
         const sum = toMilli(existing.qty) + toMilli(qty);
@@ -120,7 +131,10 @@ function posApp(config) {
     async fetchQuote() {
       const seq = ++this.quoteSeq;
       if (!this.cart || !this.lines.length) { this.quote = null; return; }
-      const data = await postJSON("/pos/quote", { lines: this.lines, bill_discount: this.cart.bill_discount });
+      const data = await postJSON("/pos/quote", {
+        lines: this.lines, bill_discount: this.cart.bill_discount,
+        customer_id: this.cart.customer ? this.cart.customer.id : null, quotation_id: this.cart.quotationId,
+      });
       if (seq === this.quoteSeq) this.quote = data;
     },
     q(i) { return this.quote && this.quote.lines[i]; },
@@ -169,6 +183,82 @@ function posApp(config) {
       this.toast = text;
       clearTimeout(this._toastTimer);
       this._toastTimer = setTimeout(() => (this.toast = ""), 2200);
+    },
+
+    // ---- customer (phase 4) -------------------------------------------------------
+    async searchCustomers() {
+      const res = await fetch("/pos/customers?q=" + encodeURIComponent(this.custSearch));
+      this.custResults = res.ok ? await res.json() : [];
+    },
+    pickCustomer(c) {
+      this.cart.customer = c;
+      this.custSearch = ""; this.custResults = [];
+      this.refresh();
+    },
+    clearCustomer() {
+      if (this.locked) return;
+      this.cart.customer = null;
+      if (this.pay.type === "credit") this.pay.type = "cash";
+      this.refresh();
+    },
+    get creditOk() { return !!(this.cart && this.cart.customer); },
+
+    // ---- quotations (phase 4) ------------------------------------------------------
+    async loadQuotation(id, how) {
+      const res = await fetch("/pos/quotation/" + id);
+      if (!res.ok) { this.flash("ไม่พบใบเสนอราคา"); return; }
+      const qt = await res.json();
+      if (how === "sell" && qt.state !== "open") {
+        this.flash(qt.state === "expired" ? "ใบเสนอราคาหมดอายุ — ต่ออายุก่อน" : "ใบเสนอราคานี้แปลงเป็นบิลแล้ว");
+        return;
+      }
+      this.carts.push({
+        label: (how === "sell" ? "ขายตาม " : "แก้ ") + qt.doc_no, lines: qt.lines, bill_discount: qt.bill_discount,
+        replaces: null, replacesDoc: "", customer: qt.customer,
+        quotationId: how === "sell" ? qt.id : null, quoteDoc: qt.doc_no,
+        editQuoteId: how === "edit" ? qt.id : null,
+        quoteMeta: { customer_name: qt.customer_name, valid_days: qt.valid_days, note: qt.note },
+      });
+      this.active = this.carts.length - 1;
+      history.replaceState(null, "", location.pathname + (this.isQuote ? "?mode=quote" : ""));
+      this.refresh();
+    },
+    openSaveQuote() {
+      if (!this.canPay) { this.flash(this.lines.length ? "แก้รายการที่มีข้อผิดพลาดก่อน" : "ยังไม่มีสินค้า"); return; }
+      const m = this.cart.quoteMeta || {};
+      this.qsave = { customer_name: m.customer_name || "", valid_days: m.valid_days || 7, note: m.note || "",
+                     pin: "", error: "", busy: false };
+      this.modal = "savequote";
+    },
+    async submitQuote() {
+      if (this.qsave.busy) return;
+      this.qsave.busy = true; this.qsave.error = "";
+      try {
+        const body = {
+          lines: this.lines, bill_discount: this.cart.bill_discount,
+          customer_id: this.cart.customer ? this.cart.customer.id : null,
+          customer_name: this.qsave.customer_name, valid_days: Number(this.qsave.valid_days) || 7,
+          note: this.qsave.note, owner_pin: this.qsave.pin,
+        };
+        const url = this.cart.editQuoteId ? "/quotations/" + this.cart.editQuoteId + "/edit" : "/quotations";
+        const data = await postJSON(url, body);
+        if (!data.ok) { this.qsave.error = data.error; if (data.pin_failed) this.qsave.pin = ""; return; }
+        this.carts.splice(this.active, 1);
+        if (!this.carts.length) this.newCart(); else this.active = Math.min(this.active, this.carts.length - 1);
+        this.save();
+        window.location = "/quotations/" + data.id + "?done=saved";
+      } finally {
+        this.qsave.busy = false;
+      }
+    },
+    checkout() { if (this.isQuote) this.openSaveQuote(); else this.openPay(); },
+    get pinNeeded() {
+      if (!this.quote) return false;
+      return this.quote.discount_pin || (this.pay.type === "credit" && this.quote.credit_pin);
+    },
+    showBill() {
+      const el = document.querySelector(".pos-right");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
     },
 
     // ---- paste from LINE (F4) ----------------------------------------------------
@@ -224,7 +314,8 @@ function posApp(config) {
       this.pay.error = "";
       this.pay.cash = "";
       this.pay.pin = "";
-      this.pay.wantBuyer = this.config.buyerRequired || !!this.pay.buyer.name;
+      this.pay.wantBuyer = !this.cart.customer && (this.config.buyerRequired || !!this.pay.buyer.name);
+      if (this.pay.type === "credit" && !this.cart.customer) this.pay.type = "cash";
       this.modal = "pay";
       this.$nextTick(() => this.$refs.cash && this.$refs.cash.focus());
     },
@@ -245,9 +336,11 @@ function posApp(config) {
           bill_discount: this.cart.bill_discount,
           payment_type: this.pay.type,
           cash_received: this.pay.type === "cash" ? this.pay.cash : "",
-          buyer: this.pay.wantBuyer ? this.pay.buyer : null,
+          buyer: this.pay.wantBuyer && !this.cart.customer ? this.pay.buyer : null,
           owner_pin: this.pay.pin,
           replaces_sale_id: this.cart.replaces,
+          customer_id: this.cart.customer ? this.cart.customer.id : null,
+          quotation_id: this.cart.quotationId,
         };
         const data = await postJSON("/pos/checkout", body);
         if (!data.ok) { this.pay.error = data.error; if (data.pin_failed) this.pay.pin = ""; return; }
@@ -293,7 +386,12 @@ function posApp(config) {
     onKey(e) {
       if (e.key === "F2") { e.preventDefault(); this.modal = null; this.$refs.search.focus(); }
       else if (e.key === "F4") { e.preventDefault(); this.openPaste(); }
-      else if (e.key === "F9") { e.preventDefault(); if (this.modal === "pay") this.submitPay(); else if (!this.modal) this.openPay(); }
+      else if (e.key === "F9") {
+        e.preventDefault();
+        if (this.modal === "pay") this.submitPay();
+        else if (this.modal === "savequote") this.submitQuote();
+        else if (!this.modal) this.checkout();
+      }
       else if (e.key === "Escape") {
         if (this.modal === "done") this.finishDone();
         else if (this.modal) this.modal = null;

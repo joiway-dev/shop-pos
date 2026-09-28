@@ -47,6 +47,7 @@
       <h1>{{ title }}</h1>
       เลขที่ <b>{{ sale.doc_no }}</b><br>
       วันที่ {{ thai_datetime(issued_at) }}
+      {% if sale.due_date %}<br>ครบกำหนดชำระ {{ sale.due_date.day }}/{{ "%02d" | format(sale.due_date.month) }}/{{ sale.due_date.year + 543 }}{% endif %}
     </div>
   </div>
 
@@ -95,7 +96,7 @@
 
   <div class="signs">
     <div>ผู้รับสินค้า / ผู้ซื้อ</div>
-    <div>ผู้รับเงิน ({{ cashier }})</div>
+    <div>{{ "ผู้ส่งสินค้า" if sale.payment_type == "credit" else "ผู้รับเงิน" }} ({{ cashier }})</div>
   </div>
 </div>
 {% endfor %}

@@ -12,16 +12,18 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db import begin_immediate
-from app.models import Product, ProductUnit, Sale, SaleLine, ShopSetting, User
+from app.models import Customer, Product, ProductUnit, Quotation, Sale, SaleLine, ShopSetting, User
+from app.models.customers import QT_CONVERTED
 from app.models.base import utcnow
 from app.models.sales import MOVE_SALE, MOVE_SALE_VOID, PAY_CASH, PAY_CREDIT, PAY_TRANSFER, SALE_COMPLETED, SALE_VOIDED
 from app.models.settings import HEAD_OFFICE_BRANCH_NO, VAT_MODE_VAT
-from app.services import auth, documents, stock
+from app.services import auth, documents, receivables, stock
+from app.services.customers import buyer_from_customer
 from app.services.audit import log_action
 from app.services.clock import now_local
 from app.services.money import AmountError, format_money, format_qty, parse_money, parse_qty
 from app.services.pricing import BillTotals, LineInput, base_qty, compute_bill, line_gross, parse_discount
-from app.services.settings import get_shop_settings, is_valid_thai_tax_id
+from app.services.settings import get_shop_settings, is_valid_thai_tax_id, shop_snapshot
 
 MAX_LINES = 200
 
@@ -66,6 +68,8 @@ class CheckoutInput:
     buyer: BuyerInput | None = None
     owner_pin: str = ""
     replaces_sale_id: int | None = None
+    customer_id: int | None = None
+    quotation_id: int | None = None  # sell exactly what the quotation says, at its prices
 
 
 # --- quote ---------------------------------------------------------------------
@@ -207,12 +211,44 @@ def _buyer_snapshot(buyer: BuyerInput | None) -> dict | None:
     return {"name": name[:200], "address": address[:500], "tax_id": tax_id or None, "branch_no": branch or None}
 
 
-def _shop_snapshot(s: ShopSetting) -> dict:
-    return {
-        "name": s.shop_name, "address": s.address, "phone": s.phone, "tax_id": s.tax_id,
-        "branch_no": s.branch_no, "vat_mode": s.vat_mode, "price_includes_vat": s.price_includes_vat,
-        "logo_filename": s.logo_filename,
+def _open_quotation(db: Session, quotation_id: int) -> Quotation:
+    qt = db.scalar(select(Quotation).where(Quotation.id == quotation_id).options(selectinload(Quotation.lines)))
+    if qt is None:
+        raise SaleError("ไม่พบใบเสนอราคา")
+    if qt.status == QT_CONVERTED:
+        raise SaleError("ใบเสนอราคานี้แปลงเป็นบิลขายไปแล้ว")
+    if qt.is_expired(now_local().date()):
+        raise SaleError("ใบเสนอราคาหมดอายุแล้ว — ต่ออายุก่อนแปลงเป็นบิล")
+    return qt
+
+
+def quote_from_quotation(db: Session, qt: Quotation, settings: ShopSetting) -> Quote:
+    """Price a quotation's lines at the quoted prices (not today's prices)."""
+    products = {
+        p.id: p for p in db.scalars(select(Product).where(Product.id.in_({l.product_id for l in qt.lines})))
     }
+    on_hand = stock.balances(db, list(products))
+    used: dict[int, int] = {}
+    lines = []
+    for ql in qt.lines:
+        p = products.get(ql.product_id)
+        q = QuoteLine(
+            product_id=ql.product_id, unit_id=ql.unit_id or 0, sku=ql.sku_snapshot, name=ql.product_name_snapshot,
+            unit_name=ql.unit_name, factor_to_base=ql.factor_to_base, qty=ql.qty, unit_price=ql.unit_price,
+            discount=ql.discount, vat_exempt=ql.vat_exempt, avg_cost=p.avg_cost if p else 0,
+        )
+        if p is None or not p.is_active:
+            q.error = "สินค้าถูกปิดใช้งานแล้ว"
+        else:
+            used[p.id] = used.get(p.id, 0) + base_qty(q.qty, q.factor_to_base)
+            if on_hand.get(p.id, 0) - used[p.id] < 0:
+                q.stock_warning = f"สต็อกไม่พอ (มี {format_qty(on_hand.get(p.id, 0))} {p.base_unit})"
+        lines.append(q)
+    totals = compute_bill([LineInput(l.qty, l.unit_price, l.discount, l.vat_exempt) for l in lines],
+                          qt.discount, settings.vat_mode, settings.vat_rate_bp, settings.price_includes_vat)
+    for l, t in zip(lines, totals.line_totals):
+        l.line_total = t
+    return Quote(lines, totals, [], has_discount=False)  # discounts were approved when quoting
 
 
 def create_sale(db: Session, actor: User, data: CheckoutInput) -> Sale:
@@ -223,24 +259,43 @@ def create_sale(db: Session, actor: User, data: CheckoutInput) -> Sale:
     """
     begin_immediate(db)
     settings = get_shop_settings(db)
-    if not data.lines:
-        raise SaleError("ยังไม่มีสินค้าในบิล")
-    q = build_quote(db, data.lines, data.bill_discount, settings)
+    quotation = None
+    if data.quotation_id:
+        quotation = _open_quotation(db, data.quotation_id)
+        q = quote_from_quotation(db, quotation, settings)
+    else:
+        if not data.lines:
+            raise SaleError("ยังไม่มีสินค้าในบิล")
+        q = build_quote(db, data.lines, data.bill_discount, settings)
     if not q.ok:
         problems = q.errors + [f"{l.name or 'รายการ'}: {l.error}" for l in q.lines if l.error]
         raise SaleError(problems[0])
     totals = q.totals
+    is_vat = settings.vat_mode == VAT_MODE_VAT
 
+    customer = None
+    customer_id = data.customer_id or (quotation.customer_id if quotation else None)
+    if customer_id:
+        customer = db.get(Customer, customer_id)
+        if customer is None or not customer.is_active:
+            raise SaleError("ไม่พบลูกค้า หรือลูกค้าถูกปิดใช้งาน")
+
+    if data.payment_type not in (PAY_CASH, PAY_TRANSFER, PAY_CREDIT):
+        raise SaleError("วิธีชำระเงินไม่ถูกต้อง")
+    credit = data.payment_type == PAY_CREDIT
+    over_limit = False
+    if credit:
+        if customer is None:
+            raise SaleError("ขายเงินเชื่อต้องเลือกลูกค้า")
+        over_limit = receivables.customer_balance(db, customer.id) + totals.total > customer.credit_limit
+
+    needs = [text for flag, text in ((q.has_discount, "การให้ส่วนลด"), (over_limit, "การขายเชื่อเกินวงเงิน")) if flag]
     approver = None
-    if q.has_discount and not actor.is_owner:
+    if needs and not actor.is_owner:
         approver = auth.verify_owner_pin(db, data.owner_pin or "")
         if approver is None:
-            raise SaleError("การให้ส่วนลดต้องใช้ PIN เจ้าของร้าน (PIN ไม่ถูกต้อง)", pin_failed=True)
+            raise SaleError(f"{' และ '.join(needs)} ต้องใช้ PIN เจ้าของร้าน (PIN ไม่ถูกต้อง)", pin_failed=True)
 
-    if data.payment_type == PAY_CREDIT:
-        raise SaleError("ขายเงินเชื่อจะเปิดใช้ในเฟส 4")
-    if data.payment_type not in (PAY_CASH, PAY_TRANSFER):
-        raise SaleError("วิธีชำระเงินไม่ถูกต้อง")
     cash_received = change = None
     if data.payment_type == PAY_CASH:
         try:
@@ -251,9 +306,14 @@ def create_sale(db: Session, actor: User, data: CheckoutInput) -> Sale:
             raise SaleError("รับเงินไม่พอ")
         change = cash_received - totals.total
 
-    buyer = _buyer_snapshot(data.buyer)
+    if data.buyer is not None and data.buyer.given:
+        buyer = _buyer_snapshot(data.buyer)
+    else:
+        buyer = buyer_from_customer(customer) if customer else None
+    if buyer is not None and is_vat and not (buyer.get("address") or "").strip():
+        raise SaleError("กรุณาใส่ที่อยู่ลูกค้า (ใช้พิมพ์ในใบกำกับภาษี)")
     try:
-        doc_type = documents.sale_doc_type(settings, buyer is not None)
+        doc_type = documents.sale_doc_type(settings, buyer is not None, credit=credit)
     except documents.DocumentError as e:
         raise SaleError(str(e)) from None
 
@@ -263,16 +323,17 @@ def create_sale(db: Session, actor: User, data: CheckoutInput) -> Sale:
         if replaces is None or replaces.status != SALE_VOIDED or replaces.replaced_by_sale_id:
             raise SaleError("บิลเดิมต้องถูกยกเลิกก่อน และยังไม่เคยออกใบใหม่แทน")
 
-    is_vat = settings.vat_mode == VAT_MODE_VAT
+    now = now_local()
     doc_no = documents.next_doc_no(
-        db, doc_type, now_local(), settings.doc_number_reset, documents.prefix_for(settings, doc_type)
+        db, doc_type, now, settings.doc_number_reset, documents.prefix_for(settings, doc_type)
     )
     sale = Sale(
-        doc_type=doc_type, doc_no=doc_no, status=SALE_COMPLETED,
+        doc_type=doc_type, doc_no=doc_no, status=SALE_COMPLETED, customer_id=customer.id if customer else None,
+        due_date=now.date() + timedelta(days=customer.credit_days) if credit else None,
         subtotal=totals.subtotal, discount=totals.discount, vatable_amount=totals.vatable_amount,
         exempt_amount=totals.exempt_amount, vat_amount=totals.vat_amount, total=totals.total,
         payment_type=data.payment_type, cash_received=cash_received, change_amount=change,
-        shop_snapshot=_shop_snapshot(settings), buyer_snapshot=buyer,
+        shop_snapshot=shop_snapshot(settings), buyer_snapshot=buyer,
         vat_rate_snapshot=settings.vat_rate_bp if is_vat else 0, print_count=0, user_id=actor.id,
     )
     for l in q.lines:
@@ -288,10 +349,15 @@ def create_sale(db: Session, actor: User, data: CheckoutInput) -> Sale:
                               ref_type="sale", ref_id=sale.id, unit_cost=l.unit_cost_snapshot)
     if replaces is not None:
         replaces.replaced_by_sale_id = sale.id
+    if quotation is not None:
+        quotation.status = QT_CONVERTED
+        quotation.converted_sale_id = sale.id
     log_action(db, actor.id, "sale_create", "sale", sale.id, {
         "doc_no": doc_no, "total": format_money(sale.total), "payment": sale.payment_type,
-        "discount_approved_by": approver.id if approver else None,
+        "customer": customer.name if customer else None, "over_credit_limit": over_limit,
+        "approved_by": approver.id if approver else None,
         "replaces": replaces.doc_no if replaces else None,
+        "quotation": quotation.doc_no if quotation else None,
     })
     return sale
 
@@ -307,6 +373,8 @@ def void_sale(db: Session, actor: User, sale: Sale, reason: str, owner_pin: str)
         raise SaleError("บิลนี้ถูกยกเลิกไปแล้ว")
     if len(reason) < 3:
         raise SaleError("กรุณาระบุเหตุผลที่ยกเลิก")
+    if receivables.sale_paid(db, sale.id):
+        raise SaleError("บิลนี้มีการรับชำระแล้ว — ยกเลิกใบรับเงินที่ตัดบิลนี้ก่อน")
     approver = auth.verify_owner_pin(db, owner_pin or "")
     if approver is None:
         raise SaleError("PIN เจ้าของร้านไม่ถูกต้อง", pin_failed=True)

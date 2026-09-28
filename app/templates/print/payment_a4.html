@@ -1,0 +1,36 @@
+{% extends "print/_a4_base.html" %}
+{% from "print/_common.html" import branch_text, thai_datetime %}
+{% set page_title = p.doc_no %}
+{% block stamp %}{% if voided %}<div class="stamp stamp-void">ยกเลิก</div>{% elif is_copy %}<div class="stamp stamp-copy">สำเนา</div>{% endif %}{% endblock %}
+{% block doc_head %}
+<span class="copy-label">{{ "สำเนา" if is_copy else "ต้นฉบับ" }}</span>
+<h1>ใบรับเงิน</h1>
+เลขที่ <b>{{ p.doc_no }}</b><br>
+วันที่ {{ thai_datetime(issued_at) }}
+{% endblock %}
+{% block body %}
+<div class="box">
+  <b>ได้รับเงินจาก:</b> {{ cust.name }}<br>
+  {% if cust.address %}<b>ที่อยู่:</b> {{ cust.address | replace("\n", " ") }}<br>{% endif %}
+  {% if cust.tax_id %}<b>เลขประจำตัวผู้เสียภาษี:</b> {{ cust.tax_id }} · {{ branch_text(cust.branch_no) }}{% endif %}
+</div>
+<p>เพื่อชำระค่าสินค้าตามเอกสารต่อไปนี้</p>
+<table class="items">
+  <thead><tr><th class="center">ลำดับ</th><th style="text-align:left">เลขที่เอกสาร</th><th>วันที่</th><th class="num">ยอดตามเอกสาร</th><th class="num">ชำระครั้งนี้</th></tr></thead>
+  <tbody>
+  {% for a in p.allocations %}
+    {% set s = sales[a.sale_id] %}
+    <tr><td class="center">{{ loop.index }}</td><td>{{ s.doc_no }}</td>
+        {% set sd = to_local(s.created_at) %}
+        <td>{{ sd.day }}/{{ "%02d" | format(sd.month) }}/{{ sd.year + 543 }}</td>
+        <td class="num">{{ s.total | money }}</td><td class="num">{{ a.amount | money }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<div class="sum">
+  <div class="words">({{ baht_text }})<br>ชำระโดย {{ methods[p.method] }}{% if p.note %} · {{ p.note }}{% endif %}
+    {% if voided %}<br><b>เอกสารนี้ถูกยกเลิก:</b> {{ p.void_reason }}{% endif %}</div>
+  <table class="totals"><tr class="grand"><td>รวมรับชำระ</td><td class="num">{{ p.amount | money }}</td></tr></table>
+</div>
+<div class="signs"><div>ผู้จ่ายเงิน</div><div>ผู้รับเงิน ({{ cashier }})</div></div>
+{% endblock %}

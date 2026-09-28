@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}ใบเสนอราคา{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">เสนอราคาให้ลูกค้า</p>
+    <h1>ใบเสนอราคา <span class="hint">({{ total }} ใบ)</span></h1>
+  </div>
+  <div class="head-actions"><a class="btn" href="/pos?mode=quote">+ ทำใบเสนอราคา</a></div>
+</div>
+
+<form class="card filter-bar" method="get" action="/quotations">
+  <input type="text" name="q" value="{{ q }}" placeholder="เลขที่ หรือชื่อลูกค้า" aria-label="ค้นหา">
+  <select name="status" aria-label="สถานะ">
+    <option value="">ทุกสถานะ</option>
+    {% for k, v in labels.items() %}<option value="{{ k }}" {% if status == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
+  </select>
+  <button type="submit">ค้นหา</button>
+</form>
+
+<div class="card">
+  {% if rows %}
+  <table class="table">
+    <thead><tr><th>เลขที่</th><th>ลูกค้า</th><th>ยืนราคาถึง</th><th class="num">ยอดรวม</th><th>สถานะ</th></tr></thead>
+    <tbody>
+    {% for qt, state in rows %}
+      <tr class="{{ 'muted' if state != 'open' else '' }}">
+        <td><a href="/quotations/{{ qt.id }}">{{ qt.doc_no }}</a></td>
+        <td>{{ qt.customer_name or "-" }}</td>
+        <td class="nowrap">{{ qt.valid_until.day }}/{{ qt.valid_until.month }}/{{ qt.valid_until.year + 543 }}</td>
+        <td class="num">{{ qt.total | money }}</td>
+        <td><span class="status {{ {'open': 'status-ok', 'expired': 'status-needs_choice', 'converted': 'status-skipped'}[state] }}">{{ labels[state] }}</span></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if pages > 1 %}<div class="pager">{% for n in range(1, pages + 1) %}{% if n == page %}<b>{{ n }}</b>{% else %}<a href="?q={{ q | urlencode }}&status={{ status }}&page={{ n }}">{{ n }}</a>{% endif %}{% endfor %}</div>{% endif %}
+  {% else %}<p class="hint">ยังไม่มีใบเสนอราคา</p>{% endif %}
+</div>
+{% endblock %}
