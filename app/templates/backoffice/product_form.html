@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}{{ product.name if product else "เพิ่มสินค้า" }}{% endblock %}
+{% macro err(field) %}{% if errors.get(field) %}<div class="field-error">{{ errors[field] }}</div>{% endif %}{% endmacro %}
+{% block content %}
+<p><a href="/products">&larr; รายการสินค้า</a></p>
+<h1>{{ product.name if product else "เพิ่มสินค้า" }}
+  {% if product and not product.is_active %}<span class="badge-danger">ปิดใช้งาน</span>{% endif %}</h1>
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if errors and not errors.get("alias") and not errors.get("alias_warning") %}
+<div class="alert alert-error">บันทึกไม่สำเร็จ กรุณาตรวจช่องที่มีข้อความสีแดง</div>
+{% endif %}
+
+<form method="post" action="{{ '/products/%d' % product.id if product else '/products' }}"
+      x-data='{ units: {{ form.units | tojson }}, def: {{ form.default | tojson }} }'>
+  <div class="card">
+    <h2>ข้อมูลสินค้า</h2>
+    <label for="name">ชื่อสินค้า</label>
+    <input type="text" id="name" name="name" value="{{ form.name }}" maxlength="200" required {% if not product %}autofocus{% endif %}>
+    {{ err("name") }}
+
+    <div class="grid-3">
+      <div>
+        <label for="sku">รหัสสินค้า <span class="hint">(เว้นว่าง = สร้างให้)</span></label>
+        <input type="text" id="sku" name="sku" value="{{ form.sku }}" maxlength="50">
+        {{ err("sku") }}
+      </div>
+      <div>
+        <label for="barcode">บาร์โค้ด <span class="hint">(ถ้ามี)</span></label>
+        <input type="text" id="barcode" name="barcode" value="{{ form.barcode }}" maxlength="50">
+        {{ err("barcode") }}
+      </div>
+      <div>
+        <label for="category_id">หมวดหมู่</label>
+        <select id="category_id" name="category_id">
+          <option value="">- ไม่ระบุ -</option>
+          {% for c in categories %}
+          <option value="{{ c.id }}" {% if c.id == form.category_id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+        {{ err("category_id") }}
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div>
+        <label for="min_stock">สต็อกขั้นต่ำ <span class="hint">(หน่วยฐาน)</span></label>
+        <input type="text" id="min_stock" name="min_stock" value="{{ form.min_stock }}" inputmode="decimal">
+        {{ err("min_stock") }}
+      </div>
+      <div>
+        <label>&nbsp;</label>
+        <label class="check"><input type="checkbox" name="vat_exempt" value="true" {% if form.vat_exempt %}checked{% endif %}> สินค้ายกเว้น VAT</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>หน่วยนับและราคา</h2>
+    <p class="hint">หน่วยฐาน = หน่วยเล็กสุดที่นับสต็อก (เช่น ถุง, เส้น) — หน่วยอื่นบอกว่าเท่ากับหน่วยฐานกี่หน่วย (เช่น 1 พาเลท = 40 ถุง)</p>
+    <table class="table units-table">
+      <thead><tr><th>ขายหลัก</th><th>ชื่อหน่วย</th><th>= หน่วยฐานกี่หน่วย</th><th>ราคาขาย (บาท)</th><th>บาร์โค้ดของหน่วย</th><th></th></tr></thead>
+      <tbody>
+        <tr>
+          <td><input type="radio" name="default_unit" value="base" x-model="def" aria-label="หน่วยขายหลัก"></td>
+          <td><input type="text" name="base_unit" value="{{ form.base_unit }}" maxlength="30" required placeholder="เช่น ถุง" aria-label="หน่วยฐาน">
+              {{ err("base_unit") }}</td>
+          <td class="muted-cell">1 (หน่วยฐาน)</td>
+          <td><input type="text" name="base_price" value="{{ form.base_price }}" inputmode="decimal" required aria-label="ราคาหน่วยฐาน">
+              {{ err("base_price") }}</td>
+          <td class="muted-cell">ใช้บาร์โค้ดสินค้า</td>
+          <td></td>
+        </tr>
+        <template x-for="(u, i) in units" :key="i">
+          <tr>
+            <td><input type="radio" name="default_unit" :value="String(i)" x-model="def" aria-label="หน่วยขายหลัก"></td>
+            <td><input type="text" name="unit_name" x-model="u.name" maxlength="30" placeholder="เช่น พาเลท" aria-label="ชื่อหน่วย"></td>
+            <td><input type="text" name="unit_factor" x-model="u.factor" inputmode="decimal" placeholder="เช่น 40" aria-label="จำนวนหน่วยฐาน"></td>
+            <td><input type="text" name="unit_price" x-model="u.price" inputmode="decimal" aria-label="ราคา"></td>
+            <td><input type="text" name="unit_barcode" x-model="u.barcode" maxlength="50" aria-label="บาร์โค้ดของหน่วย"></td>
+            <td><button type="button" class="small danger" @click="units.splice(i, 1); if (def === String(i)) def = 'base'">ลบ</button></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+    <button type="button" class="small secondary" @click="units.push({name: '', factor: '', price: '', barcode: ''})">+ เพิ่มหน่วย</button>
+    {% for msg in errors.get("units", []) %}<div class="field-error">{{ msg }}</div>{% endfor %}
+  </div>
+
+  <div class="actions">
+    <button type="submit">{{ "บันทึก" if product else "เพิ่มสินค้า" }}</button>
+    <a class="btn secondary" href="/products">ยกเลิก</a>
+  </div>
+</form>
+
+{% if product %}
+<div class="card" id="aliases" style="margin-top: 1.5rem">
+  <h2>ชื่อเรียก <span class="hint">(คำที่ลูกค้า/พนักงานใช้เรียกสินค้านี้ — ใช้ในการค้นหาและวางรายการจาก LINE)</span></h2>
+  {% if errors.get("alias_warning") %}<div class="alert alert-warn">{{ errors["alias_warning"] }}</div>{% endif %}
+  {% if product.aliases %}
+  <ul class="alias-list">
+    {% for a in product.aliases %}
+    <li>
+      <span>{{ a.alias_text }}</span>
+      {% if a.source == "learned" %}<span class="tag">เรียนรู้จากการขาย</span>{% endif %}
+      {% if a.hit_count %}<span class="hint">ใช้ {{ a.hit_count }} ครั้ง</span>{% endif %}
+      <form method="post" action="/aliases/{{ a.id }}/delete?back=product" data-alias="{{ a.alias_text }}"
+            onsubmit="return confirm('ลบชื่อเรียก ' + this.dataset.alias + ' ?')">
+        <button type="submit" class="small danger">ลบ</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="hint">ยังไม่มีชื่อเรียก</p>{% endif %}
+  <form method="post" action="/products/{{ product.id }}/aliases" class="inline-form">
+    <input type="text" name="alias" placeholder="เช่น ปูนเสือ" maxlength="200" required aria-label="ชื่อเรียกใหม่">
+    <button type="submit" class="secondary">+ เพิ่มชื่อเรียก</button>
+  </form>
+  {{ err("alias") }}
+</div>
+
+<div class="card">
+  <h2>สถานะ</h2>
+  <form method="post" action="/products/{{ product.id }}/active">
+    {% if product.is_active %}
+    <input type="hidden" name="active" value="false">
+    <p class="hint">ปิดใช้งาน = ไม่แสดงตอนขาย ไม่ถูกค้นเจอ แต่ข้อมูลเก่ายังอยู่ครบ (เปิดกลับได้)</p>
+    <button type="submit" class="danger" onclick="return confirm('ปิดใช้งานสินค้านี้?')">ปิดใช้งานสินค้า</button>
+    {% else %}
+    <input type="hidden" name="active" value="true">
+    <button type="submit" class="secondary">เปิดใช้งานสินค้า</button>
+    {% endif %}
+  </form>
+</div>
+{% endif %}
+{% endblock %}

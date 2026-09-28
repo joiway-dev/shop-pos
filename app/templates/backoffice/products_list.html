@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}สินค้า{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>สินค้า <span class="hint">({{ total }} รายการ)</span></h1>
+  {% if user.is_owner %}
+  <div class="head-actions">
+    <a class="btn" href="/products/new">+ เพิ่มสินค้า</a>
+    <a class="btn secondary" href="/products/import">นำเข้าจาก Excel</a>
+  </div>
+  {% endif %}
+</div>
+
+<form class="card filter-bar" method="get" action="/products">
+  <input type="text" name="q" value="{{ q }}" placeholder="ค้นหา ชื่อ / ชื่อเรียก / รหัส / บาร์โค้ด" autofocus>
+  <select name="category_id" aria-label="หมวดหมู่">
+    <option value="">ทุกหมวด</option>
+    {% for c in categories %}
+    <option value="{{ c.id }}" {% if c.id == category_id %}selected{% endif %}>{{ c.name }}{% if not c.is_active %} (ปิด){% endif %}</option>
+    {% endfor %}
+  </select>
+  {% if user.is_owner %}
+  <label class="check"><input type="checkbox" name="show_inactive" value="true" {% if show_inactive %}checked{% endif %}> แสดงที่ปิดใช้งาน</label>
+  {% endif %}
+  <button type="submit">ค้นหา</button>
+</form>
+
+<div class="card">
+  {% if products %}
+  <table class="table">
+    <thead><tr><th>รหัส</th><th>ชื่อสินค้า</th><th>หมวด</th><th>ราคา</th>{% if user.is_owner %}<th>ต้นทุนเฉลี่ย</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for p in products %}
+      <tr class="{{ '' if p.is_active else 'muted' }}">
+        <td>{{ p.sku }}</td>
+        <td><a href="/products/{{ p.id }}">{{ p.name }}</a>{% if not p.is_active %} <span class="badge-danger">ปิดใช้งาน</span>{% endif %}</td>
+        <td>{{ p.category.name if p.category else "-" }}</td>
+        <td>
+          {% for u in p.units %}
+          <div class="nowrap">{{ u.price | money }} / {{ u.unit_name }}</div>
+          {% endfor %}
+        </td>
+        {% if user.is_owner %}<td>{{ p.avg_cost | money }}</td>{% endif %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if pages > 1 %}
+  <div class="pager">
+    {% for n in range(1, pages + 1) %}
+      {% if n == page %}<b>{{ n }}</b>{% else %}<a href="?q={{ q | urlencode }}&category_id={{ category_id or '' }}&show_inactive={{ 'true' if show_inactive else '' }}&page={{ n }}">{{ n }}</a>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% else %}
+  <p>ไม่พบสินค้า{% if user.is_owner and not q %} — กด "เพิ่มสินค้า" หรือ "นำเข้าจาก Excel"{% endif %}</p>
+  {% endif %}
+</div>
+{% endblock %}

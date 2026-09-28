@@ -1,0 +1,7 @@
+{% if result and result.status == "conflict" %}
+<div class="alert alert-warn">เลือก {{ product.name }} แล้ว — {{ result.message }}</div>
+{% elif result and result.status == "saved" %}
+<div class="alert alert-ok">เลือก {{ product.name }} แล้ว — {{ result.message }}</div>
+{% else %}
+<div class="alert alert-ok">เลือก {{ product.name }} แล้ว{% if result and result.message %} — {{ result.message }}{% endif %}</div>
+{% endif %}

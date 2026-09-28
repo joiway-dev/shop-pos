@@ -4,8 +4,12 @@
 <h1>สวัสดี {{ user.name }}</h1>
 <div class="menu-grid">
   <span class="btn disabled">ขายหน้าร้าน<br><small>(เร็วๆ นี้)</small></span>
-  <span class="btn disabled">สินค้า<br><small>(เร็วๆ นี้)</small></span>
+  <a class="btn" href="/products">สินค้า</a>
+  <a class="btn" href="/matching">ทดสอบจับคู่สินค้า</a>
   {% if user.is_owner %}
+  <a class="btn" href="/products/import">นำเข้าสินค้า (Excel)</a>
+  <a class="btn" href="/categories">หมวดหมู่</a>
+  <a class="btn" href="/aliases">ชื่อเรียกสินค้า</a>
   <a class="btn" href="/settings">ตั้งค่าร้าน</a>
   <a class="btn" href="/users">ผู้ใช้งาน</a>
   {% endif %}

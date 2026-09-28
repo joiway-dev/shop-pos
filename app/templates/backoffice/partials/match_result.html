@@ -1,0 +1,37 @@
+{% if result %}
+<div class="match-box">
+  <p>
+    {% if result.status == "auto" %}<span class="status status-ok">✓ ลงบิลได้ทันที</span>
+    {% elif result.status == "needs_choice" %}<span class="status status-choice">ต้องเลือก</span>
+    {% else %}<span class="status status-none">ไม่พบ</span>{% endif %}
+    <span class="hint">ข้อความหลังปรับ: "{{ result.normalized }}"</span>
+  </p>
+  {% if result.candidates %}
+  <table class="table">
+    <thead><tr><th>สินค้า</th><th>คะแนน</th><th>เหตุผล</th><th></th></tr></thead>
+    <tbody>
+    {% for c in result.candidates %}
+      <tr class="{{ 'row-best' if loop.first and result.status == 'auto' else '' }}">
+        <td>{{ c.name }}</td>
+        <td>{{ c.score }}</td>
+        <td>{{ c.reason_label }}</td>
+        <td>
+          {% if result.status != "auto" %}
+          <form hx-post="/matching/learn" hx-target="#learn-result" class="inline-form">
+            <input type="hidden" name="query" value="{{ result.query }}">
+            <input type="hidden" name="product_id" value="{{ c.product_id }}">
+            <label class="check small-check"><input type="checkbox" name="remember" value="true" checked> จำคำนี้ไว้</label>
+            <button type="submit" class="small">เลือก</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>ไม่พบสินค้าที่ใกล้เคียง — ลองพิมพ์คำอื่น หรือเพิ่มชื่อเรียกในหน้าสินค้า</p>
+  {% endif %}
+  <div id="learn-result"></div>
+</div>
+{% endif %}

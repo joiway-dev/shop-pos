@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ product.name }}{% endblock %}
+{% block content %}
+{# Read-only view for cashiers: no cost information. #}
+<p><a href="/products">&larr; รายการสินค้า</a></p>
+<h1>{{ product.name }}</h1>
+<div class="card">
+  <p>รหัส: <b>{{ product.sku }}</b>{% if product.barcode %} · บาร์โค้ด: {{ product.barcode }}{% endif %}
+     {% if product.category %} · หมวด: {{ product.category.name }}{% endif %}
+     {% if product.vat_exempt %} · <span class="tag">ยกเว้น VAT</span>{% endif %}</p>
+  <table class="table">
+    <thead><tr><th>หน่วย</th><th>= หน่วยฐาน</th><th>ราคาขาย</th><th>บาร์โค้ด</th></tr></thead>
+    <tbody>
+    {% for u in product.units %}
+      <tr>
+        <td>{{ u.unit_name }}{% if u.is_default_sale_unit %} <span class="tag">ขายหลัก</span>{% endif %}</td>
+        <td>{{ u.factor_to_base | qty }} {{ product.base_unit }}</td>
+        <td>{{ u.price | money }}</td>
+        <td>{{ u.barcode or "-" }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if product.aliases %}
+  <p>ชื่อเรียก: {% for a in product.aliases %}<span class="tag">{{ a.alias_text }}</span> {% endfor %}</p>
+  {% endif %}
+</div>
+{% endblock %}

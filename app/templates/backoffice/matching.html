@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}ทดสอบการจับคู่สินค้า{% endblock %}
+{% block content %}
+<div @keydown.window.f2.prevent="$refs.q.focus()" @keydown.window.f4.prevent="$refs.paste.focus()" x-data>
+<h1>ทดสอบการจับคู่สินค้า</h1>
+<p class="hint">ลองพิมพ์ชื่อสินค้าแบบที่ลูกค้าเรียก เพื่อดูว่าระบบจับคู่ถูกไหม — F2 = ช่องค้นหา, F4 = ช่องวางรายการ</p>
+
+<div class="card">
+  <h2>ค้นหาทีละคำ</h2>
+  <input type="text" name="query" x-ref="q" autofocus autocomplete="off"
+         placeholder="เช่น ปูนเสือ, เหล็ก 12 มิล, หรือสแกนบาร์โค้ด"
+         hx-post="/matching/search" hx-trigger="input changed delay:250ms, keyup[key=='Enter']"
+         hx-target="#match-result" aria-label="ค้นหาสินค้า">
+  <div id="match-result"></div>
+</div>
+
+<div class="card">
+  <h2>วางรายการหลายบรรทัด <span class="hint">(เช่น ข้อความสั่งของจาก LINE)</span></h2>
+  <form hx-post="/matching/parse" hx-target="#order-result">
+    <textarea name="text" rows="7" x-ref="paste" aria-label="รายการสินค้า"
+              placeholder="สวัสดีค่ะ&#10;ปูนเสือ 10 ถุง&#10;เหล็ก 12 มิล 20 เส้น&#10;ทราย 2 คิว"></textarea>
+    <div class="actions"><button type="submit">ตรวจรายการ</button></div>
+  </form>
+  <div id="order-result"></div>
+</div>
+</div>
+{% endblock %}

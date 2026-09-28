@@ -12,7 +12,9 @@
   {% if user %}
   <nav class="topbar">
     <a href="/">หน้าหลัก</a>
-    {% if user.is_owner %}<a href="/settings">ตั้งค่าร้าน</a><a href="/users">ผู้ใช้งาน</a>{% endif %}
+    <a href="/products">สินค้า</a>
+    <a href="/matching">ทดสอบจับคู่</a>
+    {% if user.is_owner %}<a href="/categories">หมวดหมู่</a><a href="/aliases">ชื่อเรียก</a><a href="/settings">ตั้งค่าร้าน</a><a href="/users">ผู้ใช้งาน</a>{% endif %}
     <span class="spacer"></span>
     <span>{{ user.name }} ({{ "เจ้าของร้าน" if user.is_owner else "พนักงานขาย" }})</span>
     <form method="post" action="/logout"><button type="submit">ออกจากระบบ</button></form>

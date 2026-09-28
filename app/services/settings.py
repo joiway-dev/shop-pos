@@ -39,6 +39,9 @@ class ShopSettingsInput:
     allow_abbreviated_invoice: bool = False
     backup_dir: str = ""
     backup_keep_days: str = "30"
+    match_auto_accept: str = "92"
+    match_suggest_min: str = "60"
+    match_min_gap: str = "8"
 
 
 def get_shop_settings(db: Session) -> ShopSetting:
@@ -134,6 +137,25 @@ def _validate(data: ShopSettingsInput) -> tuple[dict, dict[str, str]]:
         values["backup_keep_days"] = keep_days
     except ValueError:
         errors["backup_keep_days"] = "จำนวนวันเก็บไฟล์สำรองต้องเป็น 1–3650"
+
+    for field, low, high, label in (
+        ("match_auto_accept", 1, 100, "คะแนนลงบิลอัตโนมัติ"),
+        ("match_suggest_min", 1, 100, "คะแนนขั้นต่ำที่จะแนะนำ"),
+        ("match_min_gap", 0, 50, "ระยะห่างจากอันดับ 2"),
+    ):
+        try:
+            number = int(getattr(data, field).strip())
+            if not low <= number <= high:
+                raise ValueError
+            values[field] = number
+        except ValueError:
+            errors[field] = f"{label}ต้องเป็นตัวเลข {low}–{high}"
+    if (
+        "match_auto_accept" in values
+        and "match_suggest_min" in values
+        and values["match_suggest_min"] >= values["match_auto_accept"]
+    ):
+        errors["match_suggest_min"] = "คะแนนขั้นต่ำที่จะแนะนำต้องน้อยกว่าคะแนนลงบิลอัตโนมัติ"
 
     return values, errors
 

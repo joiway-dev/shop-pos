@@ -73,6 +73,28 @@
     {{ err("backup_keep_days") }}
   </div>
 
+  <div class="card">
+    <h2>การจับคู่ชื่อสินค้า</h2>
+    <p class="hint">ค่าเริ่มต้น 92 / 60 / 8 — ไม่ต้องแก้ถ้าไม่แน่ใจ</p>
+    <div class="grid-3">
+      <div>
+        <label for="match_auto_accept">คะแนนลงบิลอัตโนมัติ</label>
+        <input type="number" id="match_auto_accept" name="match_auto_accept" value="{{ form.match_auto_accept }}" min="1" max="100">
+        {{ err("match_auto_accept") }}
+      </div>
+      <div>
+        <label for="match_suggest_min">คะแนนขั้นต่ำที่จะแนะนำ</label>
+        <input type="number" id="match_suggest_min" name="match_suggest_min" value="{{ form.match_suggest_min }}" min="1" max="100">
+        {{ err("match_suggest_min") }}
+      </div>
+      <div>
+        <label for="match_min_gap">ต้องห่างจากอันดับ 2 อย่างน้อย</label>
+        <input type="number" id="match_min_gap" name="match_min_gap" value="{{ form.match_min_gap }}" min="0" max="50">
+        {{ err("match_min_gap") }}
+      </div>
+    </div>
+  </div>
+
   <div class="actions"><button type="submit">บันทึกการตั้งค่า</button></div>
 </form>
 

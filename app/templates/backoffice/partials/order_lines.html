@@ -1,0 +1,39 @@
+{% if lines %}
+<table class="table order-table">
+  <thead><tr><th>ข้อความต้นฉบับ</th><th>สินค้าที่จับได้</th><th>จำนวน</th><th>หน่วย</th><th>สถานะ</th></tr></thead>
+  <tbody>
+  {% for l in lines %}
+    <tr class="line-{{ l.status }}{% if l.review_note and l.status == 'ok' %} line-review{% endif %}">
+      <td>{{ l.raw }}</td>
+      <td>
+        {% if l.product_name %}{{ l.product_name }}
+        {% elif l.candidates %}
+          <div class="hint">เลือกจาก:</div>
+          <ol class="choices">{% for c in l.candidates %}<li>{{ c.name }} <span class="hint">({{ c.score }})</span></li>{% endfor %}</ol>
+        {% else %}-{% endif %}
+      </td>
+      <td class="nowrap">{% if l.status != "skipped" %}{{ l.qty | qty }}{% endif %}</td>
+      <td>
+        {% if l.unit_name %}{{ l.unit_name }}
+        {% elif l.unit_choices %}<span class="hint">เลือก: {{ l.unit_choices | map(attribute="unit_name") | join(", ") }}</span>
+        {% elif l.unit_text %}{{ l.unit_text }}{% endif %}
+      </td>
+      <td>
+        <span class="status status-{{ l.status }}">{{ l.status_label }}</span>
+        {% if l.message %}<div class="hint">{{ l.message }}</div>{% endif %}
+        {% if l.review_note and l.status == "ok" %}<div class="warn-text">{{ l.review_note }}</div>{% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<div class="actions">
+  <button type="button" {% if not ready %}disabled{% endif %} title="ใช้งานจริงในหน้าขาย (เฟส 2)">ลงบิล</button>
+  <span class="hint">
+    {% if ready %}ทุกบรรทัดพร้อมแล้ว{% else %}ปุ่มลงบิลกดได้เมื่อทุกบรรทัดเป็น ✓ หรือ "ข้าม"{% endif %}
+    — ในหน้านี้เป็นการทดสอบ ยังไม่บันทึกการขาย
+  </span>
+</div>
+{% else %}
+<p class="hint">ไม่มีรายการ</p>
+{% endif %}

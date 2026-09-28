@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}หมวดหมู่สินค้า{% endblock %}
+{% block content %}
+<h1>หมวดหมู่สินค้า</h1>
+{% if done %}<div class="alert alert-ok">บันทึกแล้ว</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <form method="post" action="/categories" class="inline-form">
+    <input type="text" name="name" placeholder="ชื่อหมวดหมู่ใหม่ เช่น ปูน, เหล็ก" maxlength="100" required autofocus aria-label="ชื่อหมวดหมู่ใหม่">
+    <button type="submit">+ เพิ่มหมวดหมู่</button>
+  </form>
+</div>
+
+<div class="card">
+  {% if categories %}
+  <table class="table">
+    <thead><tr><th>ชื่อหมวดหมู่</th><th>สถานะ</th><th></th></tr></thead>
+    <tbody>
+    {% for c in categories %}
+      <tr class="{{ '' if c.is_active else 'muted' }}">
+        <td>
+          <form method="post" action="/categories/{{ c.id }}" class="inline-form">
+            <input type="text" name="name" value="{{ c.name }}" maxlength="100" required aria-label="ชื่อหมวดหมู่">
+            <button type="submit" class="small secondary">เปลี่ยนชื่อ</button>
+          </form>
+        </td>
+        <td>{{ "ใช้งาน" if c.is_active else "ปิดใช้งาน" }}</td>
+        <td>
+          <form method="post" action="/categories/{{ c.id }}/active">
+            <input type="hidden" name="active" value="{{ 'false' if c.is_active else 'true' }}">
+            <button type="submit" class="small {{ 'danger' if c.is_active else 'secondary' }}">{{ "ปิดใช้งาน" if c.is_active else "เปิดใช้งาน" }}</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="hint">ยังไม่มีหมวดหมู่</p>{% endif %}
+</div>
+{% endblock %}

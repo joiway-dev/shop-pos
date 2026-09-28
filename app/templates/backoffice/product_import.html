@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}นำเข้าสินค้า{% endblock %}
+{% block content %}
+<p><a href="/products">&larr; รายการสินค้า</a></p>
+<h1>นำเข้าสินค้าจาก Excel / CSV</h1>
+
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+{% if done and report %}
+<div class="alert alert-ok">
+  นำเข้าเรียบร้อย — เพิ่มใหม่ {{ report.created }} รายการ, แก้ไข {{ report.updated }} รายการ
+  {% if report.failed %}, ข้ามแถวที่ผิด {{ report.failed }} แถว{% endif %}
+</div>
+<p><a class="btn" href="/products">ไปที่รายการสินค้า</a></p>
+{% endif %}
+
+{% if not report or done %}
+<div class="card">
+  <h2>ขั้นที่ 1: ดาวน์โหลดไฟล์ตัวอย่าง</h2>
+  <p>กรอกสินค้าในไฟล์ตัวอย่าง (มีแผ่น "วิธีกรอก" อธิบายทุกคอลัมน์)</p>
+  <div class="actions">
+    <a class="btn secondary" href="/products/import/template.xlsx">ดาวน์โหลดไฟล์ Excel</a>
+    <a class="btn secondary" href="/products/import/template.csv">ดาวน์โหลดไฟล์ CSV</a>
+  </div>
+</div>
+<div class="card">
+  <h2>ขั้นที่ 2: อัปโหลดไฟล์</h2>
+  <p class="hint">ระบบจะแสดงผลตรวจสอบก่อน ยังไม่บันทึกจนกว่าจะกดยืนยัน</p>
+  <form method="post" action="/products/import" enctype="multipart/form-data">
+    <input type="file" name="file" accept=".xlsx,.csv" required>
+    <div class="actions"><button type="submit">ตรวจสอบไฟล์</button></div>
+  </form>
+</div>
+{% endif %}
+
+{% if report and not done %}
+<div class="card">
+  <h2>ผลตรวจสอบ: {{ filename }}</h2>
+  <p>
+    เพิ่มใหม่ <b>{{ report.created }}</b> ·
+    แก้ไข <b>{{ report.updated }}</b> ·
+    <span class="{{ 'badge-danger' if report.failed else '' }}">ผิด {{ report.failed }}</span> แถว
+  </p>
+  {% if report.failed %}<div class="alert alert-warn">แถวที่ผิดจะถูกข้าม — แก้ในไฟล์แล้วอัปโหลดใหม่ หรือกดนำเข้าเฉพาะแถวที่ถูกต้อง</div>{% endif %}
+  <table class="table">
+    <thead><tr><th>แถว</th><th>รหัส</th><th>ชื่อสินค้า</th><th>ผล</th></tr></thead>
+    <tbody>
+    {% for r in report.rows %}
+      <tr class="{{ 'row-error' if r.action == 'error' else '' }}">
+        <td>{{ r.row_no }}</td>
+        <td>{{ r.sku }}</td>
+        <td>{{ r.name }}</td>
+        <td>
+          {% if r.action == "create" %}เพิ่มใหม่{% elif r.action == "update" %}แก้ไข{% else %}<b class="badge-danger">ผิด</b>{% endif %}
+          {% for e in r.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+          {% for w in r.warnings %}<div class="hint warn-text">{{ w }}</div>{% endfor %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="actions">
+    {% if report.created or report.updated %}
+    <form method="post" action="/products/import/confirm">
+      <input type="hidden" name="token" value="{{ token }}">
+      <input type="hidden" name="ext" value="{{ ext }}">
+      <button type="submit">ยืนยันนำเข้า {{ report.created + report.updated }} รายการ</button>
+    </form>
+    {% endif %}
+    <a class="btn secondary" href="/products/import">อัปโหลดไฟล์ใหม่</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

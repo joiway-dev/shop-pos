@@ -35,6 +35,15 @@ class ShopSetting(TimestampMixin, Base):
         Boolean, default=False, nullable=False
     )
 
+    # Product matching thresholds (SPEC 4.2)
+    match_auto_accept: Mapped[int] = mapped_column(
+        Integer, default=92, server_default="92", nullable=False
+    )
+    match_suggest_min: Mapped[int] = mapped_column(
+        Integer, default=60, server_default="60", nullable=False
+    )
+    match_min_gap: Mapped[int] = mapped_column(Integer, default=8, server_default="8", nullable=False)
+
     # Empty = <data_dir>/backups
     backup_dir: Mapped[str | None] = mapped_column(String(500))
     backup_keep_days: Mapped[int] = mapped_column(Integer, default=30, nullable=False)

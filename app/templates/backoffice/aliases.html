@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}ชื่อเรียกสินค้า{% endblock %}
+{% block content %}
+<h1>ชื่อเรียกสินค้า</h1>
+<p class="hint">คำที่ระบบใช้จับคู่กับสินค้า — "เรียนรู้จากการขาย" คือคำที่พนักงานกด "จำคำนี้ไว้" ควรตรวจว่าถูกต้อง ถ้าผิดให้ลบ</p>
+{% if done %}<div class="alert alert-ok">ลบแล้ว</div>{% endif %}
+
+<form class="card filter-bar" method="get" action="/aliases">
+  <input type="text" name="q" value="{{ q }}" placeholder="ค้นหาคำหรือชื่อสินค้า">
+  <select name="source" aria-label="ที่มา">
+    <option value="" {% if not source %}selected{% endif %}>ทุกที่มา</option>
+    <option value="learned" {% if source == "learned" %}selected{% endif %}>เรียนรู้จากการขาย</option>
+    <option value="manual" {% if source == "manual" %}selected{% endif %}>ตั้งเอง</option>
+  </select>
+  <button type="submit">ค้นหา</button>
+</form>
+
+<div class="card">
+  {% if aliases %}
+  <table class="table">
+    <thead><tr><th>คำ</th><th>สินค้า</th><th>ที่มา</th><th>ใช้</th><th></th></tr></thead>
+    <tbody>
+    {% for a in aliases %}
+      <tr>
+        <td><b>{{ a.alias_text }}</b></td>
+        <td><a href="/products/{{ a.product_id }}#aliases">{{ a.product.name }}</a></td>
+        <td>{{ "เรียนรู้จากการขาย" if a.source == "learned" else "ตั้งเอง" }}</td>
+        <td>{{ a.hit_count }}</td>
+        <td>
+          <form method="post" action="/aliases/{{ a.id }}/delete" data-alias="{{ a.alias_text }}"
+                onsubmit="return confirm('ลบชื่อเรียก ' + this.dataset.alias + ' ?')">
+            <button type="submit" class="small danger">ลบ</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="hint">ไม่พบชื่อเรียก</p>{% endif %}
+</div>
+{% endblock %}

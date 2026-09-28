@@ -27,6 +27,9 @@ def _form_from_row(row) -> ShopSettingsInput:
         allow_abbreviated_invoice=row.allow_abbreviated_invoice,
         backup_dir=row.backup_dir or "",
         backup_keep_days=str(row.backup_keep_days),
+        match_auto_accept=str(row.match_auto_accept),
+        match_suggest_min=str(row.match_suggest_min),
+        match_min_gap=str(row.match_min_gap),
     )
 
 
@@ -69,6 +72,9 @@ def settings_submit(
     allow_abbreviated_invoice: Annotated[bool, Form()] = False,
     backup_dir: Annotated[str, Form()] = "",
     backup_keep_days: Annotated[str, Form()] = "30",
+    match_auto_accept: Annotated[str, Form()] = "92",
+    match_suggest_min: Annotated[str, Form()] = "60",
+    match_min_gap: Annotated[str, Form()] = "8",
 ):
     form = ShopSettingsInput(
         shop_name=shop_name,
@@ -83,6 +89,9 @@ def settings_submit(
         allow_abbreviated_invoice=allow_abbreviated_invoice,
         backup_dir=backup_dir,
         backup_keep_days=backup_keep_days,
+        match_auto_accept=match_auto_accept,
+        match_suggest_min=match_suggest_min,
+        match_min_gap=match_min_gap,
     )
     try:
         settings_service.update_shop_settings(db, user.id, form)
