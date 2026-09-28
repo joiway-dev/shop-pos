@@ -1,17 +1,28 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}หน้าหลัก{% endblock %}
 {% block content %}
+<p class="eyebrow">{{ today_text }}</p>
 <h1>สวัสดี {{ user.name }}</h1>
+<p class="subtitle">เลือกงานที่ต้องการทำ</p>
+
+{% macro card(href, ico, title, desc, disabled=False) -%}
+{% if disabled %}<span class="menu-card disabled">{% else %}<a class="menu-card" href="{{ href }}">{% endif %}
+  <span class="menu-icon">{{ icon(ico, 24) }}</span>
+  <span><b>{{ title }}</b><br><small>{{ desc }}</small></span>
+{% if disabled %}</span>{% else %}</a>{% endif %}
+{%- endmacro %}
+
 <div class="menu-grid">
-  <span class="btn disabled">ขายหน้าร้าน<br><small>(เร็วๆ นี้)</small></span>
-  <a class="btn" href="/products">สินค้า</a>
-  <a class="btn" href="/matching">ทดสอบจับคู่สินค้า</a>
+  {{ card("", "cart", "ขายหน้าร้าน", "เปิดใช้ในเฟสถัดไป", disabled=True) }}
+  {{ card("/products", "box", "สินค้า", "ค้นหา ดูราคา และหน่วยขาย") }}
+  {{ card("/matching", "sparkle", "ทดสอบจับคู่สินค้า", "ลองพิมพ์ชื่อหรือวางรายการจาก LINE") }}
   {% if user.is_owner %}
-  <a class="btn" href="/products/import">นำเข้าสินค้า (Excel)</a>
-  <a class="btn" href="/categories">หมวดหมู่</a>
-  <a class="btn" href="/aliases">ชื่อเรียกสินค้า</a>
-  <a class="btn" href="/settings">ตั้งค่าร้าน</a>
-  <a class="btn" href="/users">ผู้ใช้งาน</a>
+  {{ card("/products/import", "upload", "นำเข้าสินค้า", "เพิ่มสินค้าจำนวนมากจาก Excel") }}
+  {{ card("/categories", "folder", "หมวดหมู่", "จัดกลุ่มสินค้า") }}
+  {{ card("/aliases", "tag", "ชื่อเรียกสินค้า", "ตรวจคำที่ระบบเรียนรู้") }}
+  {{ card("/users", "users", "ผู้ใช้งาน", "เพิ่มพนักงาน เปลี่ยน PIN") }}
+  {{ card("/settings", "settings", "ตั้งค่าร้าน", "ข้อมูลร้าน VAT สำรองข้อมูล") }}
   {% endif %}
 </div>
 {% endblock %}

@@ -4,7 +4,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
 
 from app.models.settings import HEAD_OFFICE_BRANCH_NO
-from app.routes.deps import DB, CurrentUser, OwnerUser
+from app.routes.deps import DB, OwnerUser
 from app.services import settings as settings_service
 from app.services.settings import SettingsError, ShopSettingsInput
 from app.templating import templates
@@ -117,7 +117,8 @@ async def settings_logo(request: Request, db: DB, user: OwnerUser, logo: UploadF
 
 
 @router.get("/settings/logo")
-def settings_logo_file(request: Request, db: DB, _user: CurrentUser):
+def settings_logo_file(request: Request, db: DB):
+    # Public on purpose: the login page shows the shop logo.
     row = settings_service.get_shop_settings(db)
     if not row.logo_filename:
         raise HTTPException(status_code=404)

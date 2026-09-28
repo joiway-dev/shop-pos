@@ -1,28 +1,107 @@
+{% from "_icons.html" import icon %}
 <!doctype html>
 <html lang="th">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}ระบบร้านวัสดุก่อสร้าง{% endblock %}</title>
+  <title>{% block title %}ระบบร้านวัสดุก่อสร้าง{% endblock %} · {{ shop_name }}</title>
+  <script>
+    // Apply saved theme before paint (per-browser preference only).
+    try { if (localStorage.getItem("theme") === "dark") document.documentElement.dataset.theme = "dark"; } catch (e) {}
+  </script>
   <link rel="stylesheet" href="/static/css/app.css">
   <script src="/static/vendor/htmx.min.js"></script>
   <script defer src="/static/vendor/alpine.min.js"></script>
 </head>
-<body>
-  {% if user %}
-  <nav class="topbar">
-    <a href="/">หน้าหลัก</a>
-    <a href="/products">สินค้า</a>
-    <a href="/matching">ทดสอบจับคู่</a>
-    {% if user.is_owner %}<a href="/categories">หมวดหมู่</a><a href="/aliases">ชื่อเรียก</a><a href="/settings">ตั้งค่าร้าน</a><a href="/users">ผู้ใช้งาน</a>{% endif %}
-    <span class="spacer"></span>
-    <span>{{ user.name }} ({{ "เจ้าของร้าน" if user.is_owner else "พนักงานขาย" }})</span>
-    <form method="post" action="/logout"><button type="submit">ออกจากระบบ</button></form>
-  </nav>
-  {% endif %}
-  <main class="{% block main_class %}{% endblock %}">
-    {% block content %}{% endblock %}
-  </main>
-  <div class="footer">เวอร์ชัน {{ app_version }}</div>
+{% if user %}
+{%- set nav_main = [
+  ("/", "หน้าหลัก", "home", False),
+  ("/products", "สินค้า", "box", False),
+  ("/matching", "ทดสอบจับคู่สินค้า", "sparkle", False),
+] -%}
+{%- set nav_owner = [
+  ("/products/import", "นำเข้าสินค้า (Excel)", "upload", True),
+  ("/categories", "หมวดหมู่", "folder", True),
+  ("/aliases", "ชื่อเรียกสินค้า", "tag", True),
+  ("/users", "ผู้ใช้งาน", "users", True),
+  ("/settings", "ตั้งค่าร้าน", "settings", True),
+] -%}
+{#- Active item = the longest nav path that prefixes the current path. -#}
+{%- set ns = namespace(active="") -%}
+{%- for href, _, _, _ in nav_main + nav_owner -%}
+  {%- if (current_path == href or (href != "/" and current_path.startswith(href ~ "/"))) and href|length > ns.active|length -%}
+    {%- set ns.active = href -%}
+  {%- endif -%}
+{%- endfor -%}
+{% macro nav_item(item) -%}
+  {%- set href, label, ico, _ = item -%}
+  <a href="{{ href }}" class="nav-item {{ 'active' if href == ns.active else '' }}">{{ icon(ico) }}<span>{{ label }}</span></a>
+{%- endmacro %}
+<body x-data="{ mobileNav: false, collapsed: false, dark: document.documentElement.dataset.theme === 'dark' }"
+      x-init="try { collapsed = localStorage.getItem('navCollapsed') === '1' } catch (e) {}"
+      :class="{ 'nav-collapsed': collapsed, 'nav-open': mobileNav }">
+  <div class="app">
+    <aside class="sidebar">
+      <a href="/" class="brand">
+        {% if shop_has_logo %}<img src="/settings/logo" alt="" class="brand-logo">
+        {% else %}<span class="brand-mark">{{ icon("leaf", 24) }}</span>{% endif %}
+        <span class="brand-text"><b>{{ shop_name }}</b><small>ระบบร้านวัสดุก่อสร้าง</small></span>
+      </a>
+      <div class="nav-label">พื้นที่ทำงาน</div>
+      <nav class="nav">
+        <span class="nav-item disabled" title="เปิดใช้ในเฟส 2">{{ icon("cart") }}<span>ขายหน้าร้าน</span><em>เร็วๆ นี้</em></span>
+        {% for item in nav_main %}{{ nav_item(item) }}{% endfor %}
+      </nav>
+      {% if user.is_owner %}
+      <div class="nav-label">หลังร้าน</div>
+      <nav class="nav">{% for item in nav_owner %}{{ nav_item(item) }}{% endfor %}</nav>
+      {% endif %}
+      <div class="sidebar-foot">
+        <span class="status-dot"></span>
+        <span>ทำงานในเครื่องร้าน<br><small>ไม่ต้องใช้อินเทอร์เน็ต · v{{ app_version }}</small></span>
+      </div>
+    </aside>
+    <div class="sidebar-backdrop" @click="mobileNav = false"></div>
+
+    <div class="main">
+      <header class="topbar">
+        <button type="button" class="icon-btn" aria-label="ซ่อน/แสดงเมนู"
+                @click="if (window.innerWidth < 900) { mobileNav = !mobileNav } else { collapsed = !collapsed; try { localStorage.setItem('navCollapsed', collapsed ? '1' : '0') } catch (e) {} }">{{ icon("menu") }}</button>
+        <nav class="crumbs" aria-label="ตำแหน่ง">
+          <span class="crumb-shop">{{ shop_name }}</span>
+          <span class="crumb-sep">/</span>
+          <span>{% block crumb %}{{ self.title() }}{% endblock %}</span>
+        </nav>
+        <span class="spacer"></span>
+        <span class="today">{{ today_text }}</span>
+        <button type="button" class="icon-btn" aria-label="สลับโหมดมืด"
+                @click="dark = !dark; document.documentElement.dataset.theme = dark ? 'dark' : ''; try { localStorage.setItem('theme', dark ? 'dark' : 'light') } catch (e) {}">
+          <span x-show="!dark">{{ icon("moon") }}</span><span x-show="dark" x-cloak>{{ icon("sun") }}</span>
+        </button>
+        <span class="divider"></span>
+        <span class="avatar" aria-hidden="true">{{ user.name[:1] }}</span>
+        <span class="user-name">{{ user.name }}<small>{{ "เจ้าของร้าน" if user.is_owner else "พนักงานขาย" }}</small></span>
+        <form method="post" action="/logout">
+          <button type="submit" class="icon-btn" aria-label="ออกจากระบบ" title="ออกจากระบบ">{{ icon("logout") }}</button>
+        </form>
+      </header>
+      <main class="content {% block main_class %}{% endblock %}">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
 </body>
+{% else %}
+<body class="auth-body">
+  <main class="auth-main {% block auth_class %}{% endblock %}">
+    <div class="auth-brand">
+      {% if shop_has_logo %}<img src="/settings/logo" alt="" class="brand-logo">
+      {% else %}<span class="brand-mark">{{ icon("leaf", 26) }}</span>{% endif %}
+      <span class="brand-text"><b>{{ shop_name }}</b><small>ระบบร้านวัสดุก่อสร้าง</small></span>
+    </div>
+    {{ self.content() }}
+    <div class="footer">เวอร์ชัน {{ app_version }}</div>
+  </main>
+</body>
+{% endif %}
 </html>

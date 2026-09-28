@@ -7,6 +7,7 @@ from app.config import APP_DIR, AppConfig, load_config
 from app.db import create_db_engine, create_session_factory
 from app.routes import aliases, auth, categories, matching, products, settings, users
 from app.routes.deps import LoginRequired, OwnerRequired
+from app.services.auth import get_active_user
 from app.templating import templates
 
 
@@ -38,7 +39,9 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
 
     @app.exception_handler(OwnerRequired)
     async def _owner_required(request: Request, _exc: OwnerRequired) -> Response:
-        return templates.TemplateResponse(request, "forbidden.html", {}, status_code=403)
+        with app.state.session_factory() as db:
+            user = get_active_user(db, request.session.get("user_id"))
+            return templates.TemplateResponse(request, "forbidden.html", {"user": user}, status_code=403)
 
     app.include_router(auth.router)
     app.include_router(settings.router)
