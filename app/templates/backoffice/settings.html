@@ -74,6 +74,15 @@
   </div>
 
   <div class="card">
+    <h2>เลขที่เอกสาร</h2>
+    <div class="radio-row">
+      <label class="check"><input type="radio" name="doc_number_reset" value="monthly" {% if form.doc_number_reset != "yearly" %}checked{% endif %}> เริ่มนับใหม่ทุกเดือน <span class="hint">(RC2569-10-0001)</span></label>
+      <label class="check"><input type="radio" name="doc_number_reset" value="yearly" {% if form.doc_number_reset == "yearly" %}checked{% endif %}> เริ่มนับใหม่ทุกปี <span class="hint">(RC2569-0001)</span></label>
+    </div>
+    {{ err("doc_number_reset") }}
+  </div>
+
+  <div class="card">
     <h2>การจับคู่ชื่อสินค้า</h2>
     <p class="hint">ค่าเริ่มต้น 92 / 60 / 8 — ไม่ต้องแก้ถ้าไม่แน่ใจ</p>
     <div class="grid-3">

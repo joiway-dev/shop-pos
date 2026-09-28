@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}ขายหน้าร้าน{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+<script src="/static/js/pos.js"></script>
+<div class="pos" x-data='posApp({{ config | tojson }})' @keydown.window="onKey($event)">
+
+  <!-- ===== Left: find products ===== -->
+  <section class="pos-left">
+    <p class="eyebrow">ขายง่าย ๆ ในทุกวัน</p>
+    <h1>ขายหน้าร้าน</h1>
+    <p class="subtitle">พิมพ์ชื่อสินค้า สแกนบาร์โค้ด หรือวางรายการจาก LINE — F2 ค้นหา · F4 วางรายการ · F9 รับเงิน · Esc ยกเลิก</p>
+
+    <button type="button" class="paste-banner" @click="openPaste()">
+      <span class="paste-icon">{{ icon("clipboard", 22) }}</span>
+      <span><b>วางข้อความสั่งซื้อจาก LINE</b><small>"ปูนเสือ 10 ถุง, เหล็ก 12 มิล 20 เส้น" (F4)</small></span>
+      <span class="paste-go">วางรายการ →</span>
+    </button>
+
+    <div class="search-wrap">
+      <span class="search-icon">{{ icon("search") }}</span>
+      <input type="text" x-ref="search" x-model="search" autocomplete="off" class="search-input"
+             placeholder="ค้นหาชื่อสินค้า หรือสแกนบาร์โค้ด (F2)" aria-label="ค้นหาสินค้า"
+             @input="onSearchInput()" @keydown.enter.prevent="searchEnter()"
+             @keydown.arrow-down.prevent="moveHighlight(1)" @keydown.arrow-up.prevent="moveHighlight(-1)">
+      <div class="search-results" x-show="results" x-cloak>
+        <template x-if="results && !results.candidates.length"><div class="sr-empty">ไม่พบสินค้า — ลองคำอื่น</div></template>
+        <template x-if="results && results.candidates.length && results.status !== 'auto'">
+          <div class="sr-head">
+            <span>เลือกสินค้า (↑ ↓ แล้ว Enter)</span>
+            <label class="check small-check"><input type="checkbox" x-model="remember"> จำคำนี้ไว้</label>
+          </div>
+        </template>
+        <template x-for="(c, i) in (results ? results.candidates : [])" :key="c.product_id">
+          <button type="button" class="sr-item" :class="{ active: i === highlight, best: i === 0 && results.status === 'auto' }"
+                  @click="pick(c)" @mouseenter="highlight = i">
+            <span class="sr-name" x-text="c.name"></span>
+            <span class="sr-price"><span x-text="c.price_text"></span> / <span x-text="c.unit_name"></span></span>
+            <span class="sr-score" x-text="c.score"></span>
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <div class="chips" role="tablist">
+      <button type="button" class="chip active" hx-get="/pos/products" hx-target="#grid"
+              onclick="this.parentNode.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); this.classList.add('active')">ทั้งหมด</button>
+      {% for c in categories %}
+      <button type="button" class="chip" hx-get="/pos/products?category_id={{ c.id }}" hx-target="#grid"
+              onclick="this.parentNode.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); this.classList.add('active')">{{ c.name }}</button>
+      {% endfor %}
+    </div>
+
+    <div id="grid">{% include "pos/partials/grid.html" %}</div>
+  </section>
+
+  <!-- ===== Right: the bill ===== -->
+  <aside class="pos-right">
+    <div class="cart-tabs">
+      <template x-for="(c, i) in carts" :key="i">
+        <span class="cart-tab" :class="{ active: i === active }">
+          <button type="button" @click="switchCart(i)"><span x-text="c.label"></span> <em x-text="c.lines.length"></em></button>
+          <button type="button" class="tab-x" @click="closeCart(i)" aria-label="ปิดบิลนี้" x-show="carts.length > 1">×</button>
+        </span>
+      </template>
+      <button type="button" class="cart-tab add" @click="newCart()">+ ลูกค้าอีกคน</button>
+    </div>
+
+    <div class="bill">
+      <div class="bill-head">
+        <div>
+          <h2>บิลขายใหม่</h2>
+          <small class="hint" x-show="!cart.replaces">ตรวจสอบก่อนรับเงิน</small>
+          <small class="warn-text" x-show="cart.replaces" x-cloak>ออกใบใหม่แทน <b x-text="cart.replacesDoc"></b></small>
+        </div>
+        <span class="tag"><span x-text="lines.length"></span> รายการ</span>
+      </div>
+
+      <div class="bill-empty" x-show="!lines.length">
+        <span class="empty-icon">{{ icon("cart", 30) }}</span>
+        <b>บิลนี้ยังว่างอยู่</b>
+        <small>แตะสินค้า สแกนบาร์โค้ด หรือวางรายการจาก LINE</small>
+      </div>
+
+      <div class="bill-lines">
+        <template x-for="(l, i) in lines" :key="i">
+          <div class="bill-line" :class="{ 'has-error': q(i) && q(i).error }">
+            <div class="bl-top">
+              <b x-text="q(i) ? q(i).name : '...'"></b>
+              <button type="button" class="tab-x" @click="removeLine(i)" aria-label="ลบรายการ">×</button>
+            </div>
+            <div class="bl-row">
+              <select x-model.number="l.unit_id" @change="refresh()" aria-label="หน่วย">
+                <template x-for="u in (q(i) ? q(i).units : [])" :key="u.unit_id">
+                  <option :value="u.unit_id" x-text="u.unit_name + ' · ' + u.price_text" :selected="u.unit_id === l.unit_id"></option>
+                </template>
+              </select>
+              <div class="stepper">
+                <button type="button" @click="step(i, -1)" aria-label="ลดจำนวน">−</button>
+                <input type="text" inputmode="decimal" x-model="l.qty" @input.debounce.400ms="refresh()" aria-label="จำนวน">
+                <button type="button" @click="step(i, 1)" aria-label="เพิ่มจำนวน">+</button>
+              </div>
+              <b class="bl-total" x-text="q(i) && !q(i).error ? '฿' + q(i).line_total_text : ''"></b>
+            </div>
+            <div class="bl-row small">
+              <label class="bl-disc">ส่วนลด <input type="text" x-model="l.discount" @input.debounce.500ms="refresh()" placeholder="0 หรือ 5%" aria-label="ส่วนลดรายการ"></label>
+            </div>
+            <div class="field-error" x-show="q(i) && q(i).error" x-text="q(i) && q(i).error"></div>
+            <div class="warn-text" x-show="q(i) && q(i).stock_warning" x-text="q(i) && q(i).stock_warning"></div>
+          </div>
+        </template>
+      </div>
+
+      <div class="bill-sum" x-show="lines.length">
+        <div class="sum-row"><span>รวมสินค้า</span><b x-text="totals ? '฿' + totals.subtotal_text : '-'"></b></div>
+        <div class="sum-row"><span>ส่วนลดท้ายบิล</span>
+          <input type="text" class="sum-input" x-model="cart.bill_discount" @input.debounce.500ms="refresh()" placeholder="0 หรือ 5%" aria-label="ส่วนลดท้ายบิล"></div>
+        <template x-if="config.vat && totals">
+          <div class="sum-row muted"><span>ภาษีมูลค่าเพิ่ม</span><span x-text="'฿' + totals.vat_text"></span></div>
+        </template>
+        <div class="field-error" x-show="quote && quote.errors.length" x-text="quote && quote.errors.join(', ')"></div>
+        <div class="sum-total"><span>ยอดชำระ</span><b x-text="totals ? '฿' + totals.total_text : '-'"></b></div>
+      </div>
+
+      <button type="button" class="pay-btn" :disabled="!canPay" @click="openPay()">
+        <span>รับเงิน (F9)</span><b x-text="totals ? '฿' + totals.total_text : ''"></b>
+      </button>
+      <div class="bill-foot">
+        <span class="hint">ตัดสต็อกเมื่อรับเงินแล้ว · บิลที่พักไว้เก็บในเครื่องนี้</span>
+        <button type="button" class="link-btn" @click="clearCart()" x-show="lines.length">ล้างบิล</button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="toast" x-show="toast" x-transition x-cloak x-text="toast"></div>
+
+  <!-- ===== Modal: paste from LINE ===== -->
+  <div class="modal-back" x-show="modal === 'paste'" x-cloak @click.self="modal = null">
+    <div class="modal wide-modal" role="dialog" aria-label="วางรายการจาก LINE">
+      <button type="button" class="modal-x" @click="modal = null" aria-label="ปิด">×</button>
+      <h2>วางรายการสั่งซื้อจาก LINE</h2>
+      <p class="hint">คัดลอกข้อความจากแชตของลูกค้า แล้ววางที่นี่ (วางได้หลายบรรทัด)</p>
+      <textarea x-ref="pasteText" x-model="paste.text" rows="5" aria-label="ข้อความจากแชต"
+                @keydown.ctrl.enter="parsePaste()" placeholder="ปูนเสือ 10 ถุง&#10;ทรายหยาบ 2 คิว"></textarea>
+      <div class="actions"><button type="button" class="secondary" @click="parsePaste()" :disabled="paste.loading">แปลงเป็นรายการสินค้า</button></div>
+
+      <template x-if="paste.rows.length">
+        <div class="paste-rows">
+          <template x-for="(r, i) in paste.rows" :key="i">
+            <div class="paste-row" :class="{ skipped: r.skip, ready: rowReady(r) && !r.skip, review: r.review_note && !r.skip }">
+              <div class="pr-raw"><span x-text="r.raw"></span>
+                <small class="warn-text" x-show="r.review_note && !r.skip" x-text="r.review_note"></small>
+                <small class="hint" x-show="r.message && !rowReady(r)" x-text="r.message"></small>
+              </div>
+              <div class="pr-pick" x-show="!r.skip">
+                <select x-model.number="r.chosen_product" @change="chooseProduct(r)" aria-label="สินค้า">
+                  <option :value="null">— เลือกสินค้า —</option>
+                  <template x-for="c in r.candidates" :key="c.product_id">
+                    <option :value="c.product_id" x-text="c.name" :selected="c.product_id === r.chosen_product"></option>
+                  </template>
+                  <template x-if="r.product_id && !r.candidates.some(c => c.product_id === r.product_id)">
+                    <option :value="r.product_id" selected x-text="r.product_text"></option>
+                  </template>
+                </select>
+                <select x-model.number="r.chosen_unit" x-show="options(r)" aria-label="หน่วย">
+                  <option :value="null">— หน่วย —</option>
+                  <template x-for="u in (options(r) ? options(r).units : [])" :key="u.unit_id">
+                    <option :value="u.unit_id" x-text="u.unit_name" :selected="u.unit_id === r.chosen_unit"></option>
+                  </template>
+                </select>
+                <input type="text" class="pr-qty" x-model="r.qty" inputmode="decimal" aria-label="จำนวน">
+              </div>
+              <label class="check small-check pr-skip"><input type="checkbox" x-model="r.skip"> ข้าม</label>
+              <span class="status" :class="r.skip ? 'status-skipped' : (rowReady(r) ? 'status-ok' : 'status-needs_choice')"
+                    x-text="r.skip ? 'ข้าม' : (rowReady(r) ? '✓' : 'ต้องเลือก')"></span>
+            </div>
+          </template>
+          <label class="check small-check"><input type="checkbox" x-model="paste.remember"> จำคำที่เลือกเองไว้ใช้ครั้งหน้า</label>
+          <button type="button" class="big-btn" :disabled="!pasteReady" @click="addPasted()">
+            ตรวจแล้ว เพิ่ม <span x-text="pasteCount"></span> รายการลงบิล
+          </button>
+          <p class="hint" x-show="!pasteReady">กดได้เมื่อทุกบรรทัดเป็น ✓ หรือกด "ข้าม"</p>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- ===== Modal: payment ===== -->
+  <div class="modal-back" x-show="modal === 'pay'" x-cloak @click.self="modal = null">
+    <form class="modal" role="dialog" aria-label="รับเงิน" @submit.prevent="submitPay()">
+      <button type="button" class="modal-x" @click="modal = null" aria-label="ปิด">×</button>
+      <h2>รับเงิน</h2>
+      <div class="pay-total"><span>ยอดชำระ</span><b x-text="totals ? '฿' + totals.total_text : ''"></b></div>
+
+      <div class="seg">
+        <button type="button" :class="{ on: pay.type === 'cash' }" @click="pay.type = 'cash'">เงินสด</button>
+        <button type="button" :class="{ on: pay.type === 'transfer' }" @click="pay.type = 'transfer'">เงินโอน</button>
+      </div>
+
+      <div x-show="pay.type === 'cash'">
+        <label for="cash">รับเงินมา (บาท) <span class="hint">เว้นว่าง = พอดี</span></label>
+        <input type="text" id="cash" x-ref="cash" x-model="pay.cash" inputmode="decimal" class="cash-input" autocomplete="off">
+        <div class="quick">
+          <button type="button" class="secondary small" @click="quickCash('exact')">พอดี</button>
+          <button type="button" class="secondary small" @click="quickCash(100)">100</button>
+          <button type="button" class="secondary small" @click="quickCash(500)">500</button>
+          <button type="button" class="secondary small" @click="quickCash(1000)">1,000</button>
+        </div>
+        <div class="change-row"><span>เงินทอน</span><b x-text="changeText"></b></div>
+      </div>
+
+      <div class="buyer">
+        <label class="check" x-show="!config.buyerRequired">
+          <input type="checkbox" x-model="pay.wantBuyer">
+          <span x-text="config.vat ? 'ออกใบกำกับภาษีเต็มรูป (ใส่ข้อมูลผู้ซื้อ)' : 'ใส่ชื่อลูกค้าในใบเสร็จ'"></span>
+        </label>
+        <p class="hint" x-show="config.buyerRequired">ร้านจด VAT: ต้องกรอกข้อมูลผู้ซื้อเพื่อออกใบกำกับภาษี</p>
+        <div x-show="pay.wantBuyer" class="buyer-grid">
+          <input type="text" x-model="pay.buyer.name" placeholder="ชื่อผู้ซื้อ / บริษัท" aria-label="ชื่อผู้ซื้อ" maxlength="200">
+          <input type="text" x-model="pay.buyer.tax_id" placeholder="เลขผู้เสียภาษี (ถ้ามี)" aria-label="เลขผู้เสียภาษีผู้ซื้อ" inputmode="numeric" maxlength="17">
+          <textarea x-model="pay.buyer.address" rows="2" placeholder="ที่อยู่" aria-label="ที่อยู่ผู้ซื้อ"></textarea>
+          <input type="text" x-model="pay.buyer.branch" placeholder="สาขา (ว่าง = สำนักงานใหญ่)" aria-label="สาขาผู้ซื้อ" maxlength="20">
+        </div>
+      </div>
+
+      <div x-show="quote && quote.needs_owner_pin" class="pin-box">
+        <label for="owner-pin">บิลนี้มีส่วนลด — ให้เจ้าของร้านใส่ PIN</label>
+        <input type="password" id="owner-pin" x-model="pay.pin" inputmode="numeric" maxlength="6" autocomplete="off" class="pin-input">
+      </div>
+
+      <div class="alert alert-error" x-show="pay.error" x-text="pay.error"></div>
+      <button type="submit" class="big-btn" :disabled="pay.busy">ยืนยันรับเงิน (Enter / F9)</button>
+    </form>
+  </div>
+
+  <!-- ===== Modal: done ===== -->
+  <div class="modal-back" x-show="modal === 'done'" x-cloak>
+    <div class="modal done-modal" role="dialog" aria-label="บันทึกการขายแล้ว">
+      <span class="done-check">✓</span>
+      <h2>บันทึกการขายแล้ว</h2>
+      <p><span x-text="done && done.doc_title"></span> <b x-text="done && done.doc_no"></b></p>
+      <div class="pay-total" x-show="done && done.change_text !== null"><span>เงินทอน</span><b x-text="done ? '฿' + done.change_text : ''"></b></div>
+      <div class="actions center">
+        <button type="button" :class="done && done.default_format === '80mm' ? '' : 'secondary'" @click="printSale('80mm')">พิมพ์ใบเสร็จ 80 มม.</button>
+        <button type="button" :class="done && done.default_format === 'a4' ? '' : 'secondary'" @click="printSale('a4')">พิมพ์ A4</button>
+      </div>
+      <button type="button" class="big-btn secondary" @click="finishDone()">บิลใหม่ (Enter)</button>
+    </div>
+  </div>
+</div>
+{% endblock %}

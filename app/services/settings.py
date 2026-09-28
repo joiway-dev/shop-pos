@@ -42,6 +42,7 @@ class ShopSettingsInput:
     match_auto_accept: str = "92"
     match_suggest_min: str = "60"
     match_min_gap: str = "8"
+    doc_number_reset: str = "monthly"
 
 
 def get_shop_settings(db: Session) -> ShopSetting:
@@ -137,6 +138,10 @@ def _validate(data: ShopSettingsInput) -> tuple[dict, dict[str, str]]:
         values["backup_keep_days"] = keep_days
     except ValueError:
         errors["backup_keep_days"] = "จำนวนวันเก็บไฟล์สำรองต้องเป็น 1–3650"
+
+    if data.doc_number_reset not in ("monthly", "yearly"):
+        errors["doc_number_reset"] = "รูปแบบเลขที่เอกสารไม่ถูกต้อง"
+    values["doc_number_reset"] = data.doc_number_reset
 
     for field, low, high, label in (
         ("match_auto_accept", 1, 100, "คะแนนลงบิลอัตโนมัติ"),

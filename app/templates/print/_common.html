@@ -1,0 +1,34 @@
+{# Shared bits for printed documents. Everything comes from the sale's snapshots,
+   so reprints look exactly like the original even after settings change. #}
+{% macro branch_text(branch_no) -%}
+  {%- if not branch_no or branch_no == "00000" -%}สำนักงานใหญ่{%- else -%}สาขาที่ {{ branch_no }}{%- endif -%}
+{%- endmacro %}
+
+{% macro thai_datetime(dt) -%}
+  {{ dt.day }}/{{ "%02d" | format(dt.month) }}/{{ dt.year + 543 }} {{ dt.strftime("%H:%M") }}
+{%- endmacro %}
+
+{% macro print_head(title) %}
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<style>
+  @font-face { font-family: "Sarabun"; src: url("/static/vendor/fonts/Sarabun-Regular.ttf"); font-weight: 400; }
+  @font-face { font-family: "Sarabun"; src: url("/static/vendor/fonts/Sarabun-Bold.ttf"); font-weight: 700; }
+  * { box-sizing: border-box; }
+  body { font-family: "Sarabun", sans-serif; color: #000; margin: 0; }
+  .num { text-align: right; white-space: nowrap; }
+  .center { text-align: center; }
+  .stamp { position: absolute; font-weight: 700; border: 3px solid; border-radius: 8px; padding: 0 0.4em;
+           transform: rotate(-12deg); opacity: .75; pointer-events: none; }
+  .stamp-void { color: #b3261e; }
+  .stamp-copy { color: #555; }
+  .toolbar { position: fixed; top: 8px; right: 8px; font-family: sans-serif; }
+  .toolbar button { font: inherit; padding: 6px 14px; cursor: pointer; }
+  @media print { .toolbar { display: none; } }
+</style>
+{% endmacro %}
+
+{% macro toolbar(auto_print) %}
+<div class="toolbar"><button type="button" onclick="window.print()">พิมพ์</button> <button type="button" onclick="window.close()">ปิด</button></div>
+{% if auto_print %}<script>window.addEventListener("load", () => setTimeout(() => window.print(), 300));</script>{% endif %}
+{% endmacro %}

@@ -44,6 +44,11 @@ class ShopSetting(TimestampMixin, Base):
     )
     match_min_gap: Mapped[int] = mapped_column(Integer, default=8, server_default="8", nullable=False)
 
+    # Document numbers restart every "monthly" (RC2569-10-0001) or "yearly" (RC2569-0001)
+    doc_number_reset: Mapped[str] = mapped_column(
+        String(10), default="monthly", server_default="monthly", nullable=False
+    )
+
     # Empty = <data_dir>/backups
     backup_dir: Mapped[str | None] = mapped_column(String(500))
     backup_keep_days: Mapped[int] = mapped_column(Integer, default=30, nullable=False)

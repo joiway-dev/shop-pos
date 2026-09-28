@@ -1,0 +1,103 @@
+{% from "print/_common.html" import branch_text, thai_datetime, print_head, toolbar %}
+<!doctype html>
+<html lang="th">
+<head>
+{{ print_head(sale.doc_no) }}
+<style>
+  @page { size: A4; margin: 12mm; }
+  body { font-size: 13.5px; line-height: 1.45; }
+  @media screen { html { background: #eee; } .page { background: #fff; width: 210mm; min-height: 297mm; margin: 16px auto; padding: 12mm; box-shadow: 0 0 0 1px #ddd; } }
+  .page { position: relative; page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+  .top { display: flex; justify-content: space-between; gap: 10mm; }
+  .shop b { font-size: 18px; }
+  .logo { max-height: 22mm; max-width: 45mm; display: block; margin-bottom: 2mm; }
+  .doc { text-align: right; min-width: 70mm; }
+  .doc h1 { font-size: 20px; margin: 0 0 2mm; }
+  .copy-label { display: inline-block; border: 1.5px solid #000; padding: 0 3mm; font-weight: 700; margin-bottom: 2mm; }
+  .box { border: 1px solid #000; border-radius: 3mm; padding: 3mm 4mm; margin: 5mm 0; }
+  table.items { width: 100%; border-collapse: collapse; margin-top: 3mm; }
+  table.items th { border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 1.5mm 1mm; font-weight: 700; }
+  table.items td { padding: 1.2mm 1mm; border-bottom: 1px dotted #999; vertical-align: top; }
+  .sum { display: flex; justify-content: space-between; gap: 8mm; margin-top: 4mm; }
+  .words { flex: 1; border: 1px solid #000; border-radius: 3mm; padding: 3mm 4mm; align-self: flex-start; }
+  table.totals { min-width: 80mm; border-collapse: collapse; }
+  table.totals td { padding: 0.8mm 1mm; }
+  table.totals .grand td { border-top: 1px solid #000; border-bottom: 3px double #000; font-weight: 700; font-size: 15px; }
+  .signs { display: flex; justify-content: space-between; margin-top: 18mm; text-align: center; }
+  .signs div { width: 60mm; border-top: 1px dotted #000; padding-top: 1mm; }
+  .stamp { top: 70mm; left: 55mm; font-size: 64px; }
+</style>
+</head>
+<body>
+{{ toolbar(auto_print) }}
+{% for label in (["สำเนา", "สำเนา"] if is_copy else ["ต้นฉบับ", "สำเนา"]) %}
+<div class="page">
+  {% if voided %}<div class="stamp stamp-void">ยกเลิก</div>{% elif is_copy %}<div class="stamp stamp-copy">สำเนา</div>{% endif %}
+  <div class="top">
+    <div class="shop">
+      {% if shop.logo_filename %}<img class="logo" src="/settings/logo" alt="">{% endif %}
+      <b>{{ shop.name }}</b><br>
+      {% if shop.address %}{{ shop.address | replace("\n", "<br>"|safe) }}<br>{% endif %}
+      {% if shop.phone %}โทร {{ shop.phone }}<br>{% endif %}
+      {% if is_vat %}เลขประจำตัวผู้เสียภาษี {{ shop.tax_id }} · {{ branch_text(shop.branch_no) }}{% endif %}
+    </div>
+    <div class="doc">
+      <span class="copy-label">{{ label }}</span>
+      <h1>{{ title }}</h1>
+      เลขที่ <b>{{ sale.doc_no }}</b><br>
+      วันที่ {{ thai_datetime(issued_at) }}
+    </div>
+  </div>
+
+  <div class="box">
+    {% if buyer %}
+    <b>ลูกค้า:</b> {{ buyer.name }}<br>
+    <b>ที่อยู่:</b> {{ buyer.address | replace("\n", " ") }}<br>
+    {% if buyer.tax_id %}<b>เลขประจำตัวผู้เสียภาษี:</b> {{ buyer.tax_id }} · {{ branch_text(buyer.branch_no) }}{% endif %}
+    {% else %}
+    <b>ลูกค้า:</b> ลูกค้าทั่วไป
+    {% endif %}
+  </div>
+
+  <table class="items">
+    <thead><tr><th class="center">ลำดับ</th><th style="text-align:left">รายการ</th><th class="num">จำนวน</th><th class="num">ราคา/หน่วย</th><th class="num">ส่วนลด</th><th class="num">จำนวนเงิน</th></tr></thead>
+    <tbody>
+    {% for l in sale.lines %}
+      <tr>
+        <td class="center">{{ loop.index }}</td>
+        <td>{{ l.product_name_snapshot }}{% if is_vat and l.vat_exempt %} (ยกเว้นภาษี){% endif %}</td>
+        <td class="num">{{ l.qty | qty }} {{ l.unit_name }}</td>
+        <td class="num">{{ l.unit_price | money }}</td>
+        <td class="num">{{ l.discount | money if l.discount else "" }}</td>
+        <td class="num">{{ l.line_total | money }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="sum">
+    <div class="words">({{ baht_text }})
+      {% if is_vat and shop.price_includes_vat %}<br><small>ราคาสินค้ารวมภาษีมูลค่าเพิ่มแล้ว</small>{% endif %}
+      {% if voided %}<br><b>เอกสารนี้ถูกยกเลิก:</b> {{ sale.void_reason }}{% endif %}
+    </div>
+    <table class="totals">
+      <tr><td>รวมเป็นเงิน</td><td class="num">{{ sale.subtotal | money }}</td></tr>
+      {% if sale.discount %}<tr><td>ส่วนลด</td><td class="num">-{{ sale.discount | money }}</td></tr>{% endif %}
+      {% if is_vat %}
+      <tr><td>มูลค่าสินค้าก่อนภาษี</td><td class="num">{{ sale.vatable_amount | money }}</td></tr>
+      {% if sale.exempt_amount %}<tr><td>มูลค่าสินค้ายกเว้นภาษี</td><td class="num">{{ sale.exempt_amount | money }}</td></tr>{% endif %}
+      <tr><td>ภาษีมูลค่าเพิ่ม {{ "%.2f" | format(vat_rate) }}%</td><td class="num">{{ sale.vat_amount | money }}</td></tr>
+      {% endif %}
+      <tr class="grand"><td>จำนวนเงินรวมทั้งสิ้น</td><td class="num">{{ sale.total | money }}</td></tr>
+    </table>
+  </div>
+
+  <div class="signs">
+    <div>ผู้รับสินค้า / ผู้ซื้อ</div>
+    <div>ผู้รับเงิน ({{ cashier }})</div>
+  </div>
+</div>
+{% endfor %}
+</body>
+</html>

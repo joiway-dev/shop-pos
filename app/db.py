@@ -36,10 +36,26 @@ def create_db_engine(db_url: str) -> Engine:
 
     @event.listens_for(engine, "begin")
     def _on_begin(conn):
-        conn.exec_driver_sql("BEGIN")
+        mode = conn.get_execution_options().get("sqlite_begin", "")
+        conn.exec_driver_sql(f"BEGIN {mode}".strip())
 
     return engine
 
 
 def create_session_factory(engine: Engine) -> sessionmaker[Session]:
     return sessionmaker(bind=engine, expire_on_commit=False)
+
+
+def begin_immediate(db: Session) -> None:
+    """Start a write transaction that takes SQLite's write lock up front.
+
+    Needed wherever we read-then-write a counter (document numbers): with a
+    plain deferred BEGIN two writers could read the same last number. Any
+    read-only transaction already open on the session is ended first; pending
+    writes are not allowed (the caller must not have started writing yet).
+    """
+    if db.new or db.dirty or db.deleted:
+        raise RuntimeError("begin_immediate() called with pending changes")
+    if db.in_transaction():
+        db.commit()
+    db.connection(execution_options={"sqlite_begin": "IMMEDIATE"})

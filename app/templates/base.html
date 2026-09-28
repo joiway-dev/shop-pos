@@ -15,6 +15,8 @@
 </head>
 {% if user %}
 {%- set nav_main = [
+  ("/pos", "ขายหน้าร้าน", "cart", False),
+  ("/sales", "บิลขาย", "clipboard", False),
   ("/", "หน้าหลัก", "home", False),
   ("/products", "สินค้า", "box", False),
   ("/matching", "ทดสอบจับคู่สินค้า", "sparkle", False),
@@ -49,7 +51,6 @@
       </a>
       <div class="nav-label">พื้นที่ทำงาน</div>
       <nav class="nav">
-        <span class="nav-item disabled" title="เปิดใช้ในเฟส 2">{{ icon("cart") }}<span>ขายหน้าร้าน</span><em>เร็วๆ นี้</em></span>
         {% for item in nav_main %}{{ nav_item(item) }}{% endfor %}
       </nav>
       {% if user.is_owner %}

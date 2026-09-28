@@ -1,0 +1,22 @@
+{% from "_icons.html" import icon %}
+{% if grid %}
+<p class="grid-count">สินค้า {{ grid | length }} รายการ</p>
+<div class="product-grid">
+  {% for p, unit, on_hand in grid %}
+  {% if unit %}
+  <button type="button" class="product-card" @click="add({{ p.id }}, {{ unit.id }})" title="เพิ่ม {{ p.name }}">
+    <span class="pc-thumb">{{ icon("box", 30) }}<small>{{ unit.unit_name }}</small></span>
+    <span class="pc-cat">{{ p.category.name if p.category else "" }}</span>
+    <span class="pc-name">{{ p.name }}</span>
+    <span class="pc-meta">
+      <span class="{{ 'stock-low' if on_hand <= p.min_stock_qty else 'stock-ok' }}">• เหลือ {{ on_hand | qty }} {{ p.base_unit }}</span>
+      <span>{{ p.sku }}</span>
+    </span>
+    <span class="pc-foot"><b>฿{{ unit.price | money }}</b><small>/ {{ unit.unit_name }}</small><span class="pc-add">+</span></span>
+  </button>
+  {% endif %}
+  {% endfor %}
+</div>
+{% else %}
+<p class="hint">ไม่มีสินค้าในหมวดนี้</p>
+{% endif %}

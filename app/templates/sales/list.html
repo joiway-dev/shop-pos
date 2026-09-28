@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}บิลขาย{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">ประวัติการขาย</p>
+    <h1>บิลขาย <span class="hint">({{ total }} บิล)</span></h1>
+  </div>
+  <div class="head-actions"><a class="btn" href="/pos">+ เปิดบิลขาย</a></div>
+</div>
+
+<form class="card filter-bar" method="get" action="/sales">
+  <input type="text" name="q" value="{{ q }}" placeholder="เลขที่เอกสาร หรือชื่อสินค้า" aria-label="ค้นหาบิล">
+  <input type="date" name="day" value="{{ day }}" aria-label="วันที่" class="date-input">
+  <select name="status" aria-label="สถานะ">
+    <option value="">ทุกสถานะ</option>
+    <option value="completed" {% if status == "completed" %}selected{% endif %}>ปกติ</option>
+    <option value="voided" {% if status == "voided" %}selected{% endif %}>ยกเลิก</option>
+  </select>
+  <button type="submit">ค้นหา</button>
+</form>
+
+<div class="card">
+  {% if rows %}
+  <table class="table">
+    <thead><tr><th>เลขที่</th><th>วันเวลา</th><th>ประเภท</th><th>ชำระ</th><th class="num">ยอดรวม</th><th>สถานะ</th></tr></thead>
+    <tbody>
+    {% for s in rows %}
+      <tr class="{{ 'muted' if s.status == 'voided' else '' }}">
+        <td><a href="/sales/{{ s.id }}">{{ s.doc_no }}</a></td>
+        <td class="nowrap">{{ to_local(s.created_at).strftime("%d/%m/") }}{{ to_local(s.created_at).year + 543 }} {{ to_local(s.created_at).strftime("%H:%M") }}</td>
+        <td>{{ titles[s.doc_type] }}</td>
+        <td>{{ {"cash": "เงินสด", "transfer": "โอน", "credit": "เงินเชื่อ"}[s.payment_type] }}</td>
+        <td class="num">{{ s.total | money }}</td>
+        <td>{% if s.status == "voided" %}<span class="status status-not_found">ยกเลิก</span>{% else %}<span class="status status-ok">ปกติ</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if pages > 1 %}
+  <div class="pager">
+    {% for n in range(1, pages + 1) %}
+      {% if n == page %}<b>{{ n }}</b>{% else %}<a href="?q={{ q | urlencode }}&day={{ day }}&status={{ status }}&page={{ n }}">{{ n }}</a>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% else %}
+  <p class="hint">ยังไม่มีบิลขาย</p>
+  {% endif %}
+</div>
+{% endblock %}

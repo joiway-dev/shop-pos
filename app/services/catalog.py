@@ -421,11 +421,8 @@ def add_alias(
         names = ", ".join(p.name for p in others)
         warning = f"คำว่า \"{alias_text}\" เป็นชื่อเรียกของ {names} ด้วย — ตอนขายจะต้องเลือกสินค้าเอง"
 
-    alias = ProductAlias(
-        product_id=product.id, alias_text=alias_text, alias_normalized=alias_normalized,
-        source=source, hit_count=0,
-    )
-    db.add(alias)
+    alias = ProductAlias(alias_text=alias_text, alias_normalized=alias_normalized, source=source, hit_count=0)
+    product.aliases.append(alias)  # keeps an already-loaded collection current
     db.flush()
     action = "alias_learn" if source == ALIAS_SOURCE_LEARNED else "alias_add"
     log_action(db, actor_id, action, "product", product.id, {"alias": alias_text, "product": product.name})
@@ -438,7 +435,7 @@ def delete_alias(db: Session, actor_id: int, alias: ProductAlias) -> None:
         db, actor_id, "alias_delete", "product", alias.product_id,
         {"alias": alias.alias_text, "source": alias.source},
     )
-    db.delete(alias)
+    alias.product.aliases.remove(alias)  # delete-orphan removes the row
     db.flush()
     mark_catalog_changed(db)
 

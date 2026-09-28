@@ -30,6 +30,7 @@ def _form_from_row(row) -> ShopSettingsInput:
         match_auto_accept=str(row.match_auto_accept),
         match_suggest_min=str(row.match_suggest_min),
         match_min_gap=str(row.match_min_gap),
+        doc_number_reset=row.doc_number_reset,
     )
 
 
@@ -75,6 +76,7 @@ def settings_submit(
     match_auto_accept: Annotated[str, Form()] = "92",
     match_suggest_min: Annotated[str, Form()] = "60",
     match_min_gap: Annotated[str, Form()] = "8",
+    doc_number_reset: Annotated[str, Form()] = "monthly",
 ):
     form = ShopSettingsInput(
         shop_name=shop_name,
@@ -92,6 +94,7 @@ def settings_submit(
         match_auto_accept=match_auto_accept,
         match_suggest_min=match_suggest_min,
         match_min_gap=match_min_gap,
+        doc_number_reset=doc_number_reset,
     )
     try:
         settings_service.update_shop_settings(db, user.id, form)
