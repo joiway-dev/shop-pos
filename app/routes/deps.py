@@ -45,3 +45,13 @@ def require_owner(user: CurrentUser) -> User:
 
 
 OwnerUser = Annotated[User, Depends(require_owner)]
+
+
+def require_receiver(user: CurrentUser) -> User:
+    """Owner, or staff the owner allowed to receive goods."""
+    if not user.may_receive_stock:
+        raise OwnerRequired()
+    return user
+
+
+ReceiverUser = Annotated[User, Depends(require_receiver)]

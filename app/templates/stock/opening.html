@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}นำเข้ายอดยกมา{% endblock %}
+{% block content %}
+<p><a href="/stock">&larr; สต็อกสินค้า</a></p>
+<p class="eyebrow">เริ่มใช้ระบบ</p>
+<h1>นำเข้ายอดยกมา</h1>
+<p class="subtitle">ตั้งยอดสต็อกและต้นทุนเริ่มต้นของสินค้าทุกตัวจาก Excel — ระบบ "ตั้งยอด" ให้เท่ากับตัวเลขในไฟล์ (ไม่ใช่บวกเพิ่ม)</p>
+
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+{% if done and report %}
+<div class="alert alert-ok">ตั้งยอดเรียบร้อย {{ report.changed }} รายการ{% if report.failed %} (ข้ามแถวที่ผิด {{ report.failed }} แถว){% endif %}</div>
+<p><a class="btn" href="/stock">ไปที่สต็อกสินค้า</a></p>
+{% endif %}
+
+{% if not report or done %}
+<div class="card">
+  <h2>ขั้นที่ 1: ดาวน์โหลดไฟล์</h2>
+  <p>ไฟล์มีสินค้าทุกตัวพร้อมยอดและต้นทุนปัจจุบัน — แก้เฉพาะคอลัมน์ "ยอดคงเหลือ" และ "ต้นทุนต่อหน่วยฐาน"</p>
+  <a class="btn secondary" href="/stock/opening/template.xlsx">ดาวน์โหลดไฟล์ Excel</a>
+</div>
+<div class="card">
+  <h2>ขั้นที่ 2: อัปโหลดไฟล์ที่กรอกแล้ว</h2>
+  <form method="post" action="/stock/opening" enctype="multipart/form-data">
+    <input type="file" name="file" accept=".xlsx" required>
+    <div class="actions"><button type="submit">ตรวจสอบไฟล์</button></div>
+  </form>
+</div>
+{% endif %}
+
+{% if report and not done %}
+<div class="card">
+  <h2>ผลตรวจสอบ: {{ filename }}</h2>
+  <p>จะตั้งยอด <b>{{ report.changed }}</b> รายการ · <span class="{{ 'badge-danger' if report.failed else '' }}">ผิด {{ report.failed }}</span> แถว</p>
+  <table class="table">
+    <thead><tr><th>แถว</th><th>รหัส</th><th>สินค้า</th><th class="num">ยอดเดิม</th><th class="num">ยอดใหม่</th><th class="num">ต้นทุน</th><th>ผล</th></tr></thead>
+    <tbody>
+    {% for r in report.rows %}
+      <tr class="{{ 'row-error' if r.action == 'error' else ('muted' if r.action == 'same' else '') }}">
+        <td>{{ r.row_no }}</td><td>{{ r.sku }}</td><td>{{ r.name }}</td>
+        <td class="num">{{ r.before }}</td><td class="num">{{ r.after }}</td><td class="num">{{ r.cost }}</td>
+        <td>{% if r.action == "set" %}ตั้งยอด{% elif r.action == "same" %}ไม่เปลี่ยน{% else %}<b class="badge-danger">ผิด</b>{% for e in r.errors %}<div class="field-error">{{ e }}</div>{% endfor %}{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="actions">
+    {% if report.changed %}
+    <form method="post" action="/stock/opening/confirm">
+      <input type="hidden" name="token" value="{{ token }}">
+      <button type="submit">ยืนยันตั้งยอด {{ report.changed }} รายการ</button>
+    </form>
+    {% endif %}
+    <a class="btn secondary" href="/stock/opening">อัปโหลดไฟล์ใหม่</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

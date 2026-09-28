@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}ผู้ขาย{% endblock %}
+{% block content %}
+<p class="eyebrow">รับสินค้าเข้า</p>
+<h1>ผู้ขาย (ซัพพลายเออร์)</h1>
+{% if done %}<div class="alert alert-ok">บันทึกแล้ว</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<div class="card" x-data='{ edit: null, f: {{ form | tojson }} }'>
+  <h2 x-text="edit ? 'แก้ไขผู้ขาย' : 'เพิ่มผู้ขาย'"></h2>
+  <form method="post" action="/suppliers">
+    <input type="hidden" name="supplier_id" :value="edit || ''">
+    <div class="grid-3">
+      <div><label for="s-name">ชื่อผู้ขาย</label><input type="text" id="s-name" name="name" x-model="f.name" maxlength="200" required></div>
+      <div><label for="s-phone">เบอร์โทร</label><input type="text" id="s-phone" name="phone" x-model="f.phone" maxlength="50"></div>
+      <div><label for="s-tax">เลขผู้เสียภาษี</label><input type="text" id="s-tax" name="tax_id" x-model="f.tax_id" maxlength="17" inputmode="numeric"></div>
+    </div>
+    <label for="s-addr">ที่อยู่</label>
+    <textarea id="s-addr" name="address" rows="2" x-model="f.address"></textarea>
+    <div class="actions">
+      <button type="submit" x-text="edit ? 'บันทึกการแก้ไข' : '+ เพิ่มผู้ขาย'"></button>
+      <button type="button" class="secondary" x-show="edit" x-cloak @click="edit = null; f = {name: '', phone: '', address: '', tax_id: ''}">ยกเลิกการแก้ไข</button>
+    </div>
+  </form>
+
+  {% if suppliers %}
+  <table class="table" style="margin-top: 1.2rem">
+    <thead><tr><th>ชื่อ</th><th>โทร</th><th>เลขผู้เสียภาษี</th><th></th></tr></thead>
+    <tbody>
+    {% for s in suppliers %}
+      <tr class="{{ '' if s.is_active else 'muted' }}">
+        <td><b>{{ s.name }}</b>{% if s.address %}<br><small class="hint">{{ s.address }}</small>{% endif %}</td>
+        <td>{{ s.phone or "-" }}</td>
+        <td>{{ s.tax_id or "-" }}</td>
+        <td class="row-actions">
+          <button type="button" class="small secondary"
+                  @click='edit = {{ s.id }}; f = {{ {"name": s.name, "phone": s.phone, "address": s.address, "tax_id": s.tax_id or ""} | tojson }}; window.scrollTo(0, 0)'>แก้ไข</button>
+          <form method="post" action="/suppliers/{{ s.id }}/active">
+            <input type="hidden" name="active" value="{{ 'false' if s.is_active else 'true' }}">
+            <button type="submit" class="small {{ 'danger' if s.is_active else 'secondary' }}">{{ "ปิดใช้งาน" if s.is_active else "เปิดใช้งาน" }}</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="hint">ยังไม่มีผู้ขาย</p>{% endif %}
+</div>
+{% endblock %}

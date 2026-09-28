@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, CheckConstraint, Integer, String, Text
+from sqlalchemy import JSON, Boolean, CheckConstraint, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -48,6 +48,9 @@ class ShopSetting(TimestampMixin, Base):
     doc_number_reset: Mapped[str] = mapped_column(
         String(10), default="monthly", server_default="monthly", nullable=False
     )
+
+    # {"RC": "SB", ...}; missing types use documents.DEFAULT_PREFIXES
+    doc_prefixes: Mapped[dict | None] = mapped_column(JSON)
 
     # Empty = <data_dir>/backups
     backup_dir: Mapped[str | None] = mapped_column(String(500))

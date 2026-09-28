@@ -1,10 +1,11 @@
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
 
 from app.models.settings import HEAD_OFFICE_BRANCH_NO
 from app.routes.deps import DB, OwnerUser
+from app.services import documents
 from app.services import settings as settings_service
 from app.services.settings import SettingsError, ShopSettingsInput
 from app.templating import templates
@@ -31,6 +32,7 @@ def _form_from_row(row) -> ShopSettingsInput:
         match_suggest_min=str(row.match_suggest_min),
         match_min_gap=str(row.match_min_gap),
         doc_number_reset=row.doc_number_reset,
+        doc_prefixes={t: documents.prefix_for(row, t) for t in documents.DEFAULT_PREFIXES},
     )
 
 
@@ -45,6 +47,7 @@ def _render(request: Request, user, row, form, errors=None, saved=False, status_
             "errors": errors or {},
             "saved": saved,
             "default_backup_dir": str(request.app.state.config.default_backup_dir),
+            "doc_titles": documents.TITLES,
         },
         status_code=status_code,
     )
@@ -54,6 +57,11 @@ def _render(request: Request, user, row, form, errors=None, saved=False, status_
 def settings_form(request: Request, db: DB, user: OwnerUser, saved: bool = False):
     row = settings_service.get_shop_settings(db)
     return _render(request, user, row, _form_from_row(row), saved=saved)
+
+
+async def _prefix_form(request: Request) -> dict:
+    form = await request.form()
+    return {t: str(form.get(f"prefix_{t}", "")) for t in documents.DEFAULT_PREFIXES}
 
 
 @router.post("/settings")
@@ -77,6 +85,7 @@ def settings_submit(
     match_suggest_min: Annotated[str, Form()] = "60",
     match_min_gap: Annotated[str, Form()] = "8",
     doc_number_reset: Annotated[str, Form()] = "monthly",
+    doc_prefixes: dict = Depends(_prefix_form),
 ):
     form = ShopSettingsInput(
         shop_name=shop_name,
@@ -95,6 +104,7 @@ def settings_submit(
         match_suggest_min=match_suggest_min,
         match_min_gap=match_min_gap,
         doc_number_reset=doc_number_reset,
+        doc_prefixes=doc_prefixes,
     )
     try:
         settings_service.update_shop_settings(db, user.id, form)

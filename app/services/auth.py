@@ -203,6 +203,23 @@ def set_user_active(db: Session, actor: User, user: User, active: bool) -> None:
     )
 
 
+def set_permissions(db: Session, actor: User, user: User, can_receive_stock: bool, can_see_cost: bool) -> None:
+    """Owner grants per-staff permissions (owners always have everything)."""
+    if not actor.is_owner:
+        raise AuthError("เฉพาะเจ้าของร้าน")
+    if user.is_owner:
+        raise AuthError("เจ้าของร้านมีสิทธิ์ทุกอย่างอยู่แล้ว")
+    changes = {}
+    if user.can_receive_stock != can_receive_stock:
+        changes["can_receive_stock"] = [user.can_receive_stock, can_receive_stock]
+        user.can_receive_stock = can_receive_stock
+    if user.can_see_cost != can_see_cost:
+        changes["can_see_cost"] = [user.can_see_cost, can_see_cost]
+        user.can_see_cost = can_see_cost
+    if changes:
+        log_action(db, actor.id, "user_permissions", "user", user.id, {"name": user.name, "changes": changes})
+
+
 def unlock_user(db: Session, actor: User, user: User) -> None:
     _clear_failures(user)
     log_action(db, actor.id, "pin_unlock", "user", user.id, {"name": user.name})

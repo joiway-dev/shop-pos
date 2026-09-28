@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}{{ p.doc_no }}{% endblock %}
+{% block content %}
+{% set t = to_local(p.created_at) %}
+<p><a href="/purchases">&larr; รับสินค้าเข้า</a></p>
+<p class="eyebrow">ใบรับสินค้า</p>
+<h1>{{ p.doc_no }}
+  <span class="status {{ {'pending_cost': 'status-needs_choice', 'completed': 'status-ok', 'voided': 'status-not_found'}[p.status] }}">{{ labels[p.status] }}</span></h1>
+{% if done == "created" %}<div class="alert alert-ok">บันทึกรับสินค้าแล้ว สต็อกเพิ่มเรียบร้อย</div>{% endif %}
+{% if done == "costed" %}<div class="alert alert-ok">ใส่ต้นทุนแล้ว ต้นทุนเฉลี่ยอัปเดตเรียบร้อย</div>{% endif %}
+{% if done == "voided" %}<div class="alert alert-ok">ยกเลิกใบรับแล้ว สต็อกถูกตัดคืน</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <p>
+    รับเมื่อ {{ t.day }}/{{ t.month }}/{{ t.year + 543 }} {{ t.strftime("%H:%M") }} โดย {{ names.get(p.user_id, "-") }}
+    · ผู้ขาย {{ p.supplier.name if p.supplier else "-" }}
+    {% if p.supplier_invoice_no %}· ใบแจ้งหนี้ {{ p.supplier_invoice_no }}{% endif %}
+    {% if p.supplier_invoice_date %}({{ p.supplier_invoice_date.day }}/{{ p.supplier_invoice_date.month }}/{{ p.supplier_invoice_date.year + 543 }}){% endif %}
+    {% if p.note %}<br>หมายเหตุ: {{ p.note }}{% endif %}
+  </p>
+
+  {% if p.status == "pending_cost" and user.may_see_cost %}
+  <form method="post" action="/purchases/{{ p.id }}/costs">
+    <div class="alert alert-warn">ใบนี้ยังไม่มีต้นทุน — ใส่ราคาทุนต่อหน่วยตามใบแจ้งหนี้ของผู้ขาย</div>
+    <label>ราคาในใบของผู้ขาย</label>
+    <div class="radio-row">
+      {% for k, v in vat_labels.items() %}<label class="check"><input type="radio" name="vat_type" value="{{ k }}" {% if k == p.vat_type %}checked{% endif %}> {{ v }}</label>{% endfor %}
+    </div>
+    <table class="table">
+      <thead><tr><th>สินค้า</th><th class="num">จำนวน</th><th>ราคาทุน / หน่วย (บาท)</th></tr></thead>
+      <tbody>
+      {% for l in p.lines %}
+        <tr><td>{{ l.product_name_snapshot }}</td><td class="num">{{ l.qty | qty }} {{ l.unit_name }}</td>
+            <td><input type="text" name="cost_{{ l.id }}" inputmode="decimal" required style="max-width: 10rem" aria-label="ราคาทุน {{ l.product_name_snapshot }}"></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <div class="actions"><button type="submit">บันทึกต้นทุน</button></div>
+  </form>
+  {% else %}
+  <table class="table">
+    <thead><tr><th>สินค้า</th><th class="num">จำนวน</th>{% if user.may_see_cost %}<th class="num">ราคาทุน/หน่วย</th><th class="num">รวม</th><th class="num">ทุน/หน่วยฐาน</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for l in p.lines %}
+      <tr>
+        <td><a href="/stock/{{ l.product_id }}">{{ l.product_name_snapshot }}</a></td>
+        <td class="num">{{ l.qty | qty }} {{ l.unit_name }}</td>
+        {% if user.may_see_cost %}
+        <td class="num">{{ l.unit_cost | money if l.unit_cost is not none else "-" }}</td>
+        <td class="num">{{ l.line_total | money if l.line_total is not none else "-" }}</td>
+        <td class="num">{{ l.cost_base | money if l.cost_base is not none else "-" }}</td>
+        {% endif %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if user.may_see_cost and p.status == "completed" %}
+  <div class="totals-box">
+    <div><span>{{ vat_labels[p.vat_type] }}</span><span></span></div>
+    <div><span>รวม</span><b>{{ p.subtotal | money }}</b></div>
+    {% if p.vat_amount %}<div><span>VAT {{ "%.2f" | format(p.vat_rate_bp / 100) }}%</span><b>{{ p.vat_amount | money }}</b></div>{% endif %}
+    <div class="grand"><span>ยอดตามใบแจ้งหนี้</span><b>{{ p.total | money }}</b></div>
+    {% if p.costed_by %}<div class="hint"><span>ใส่ต้นทุนโดย</span><span>{{ names.get(p.costed_by, "-") }}</span></div>{% endif %}
+  </div>
+  {% endif %}
+  {% if p.status == "pending_cost" and not user.may_see_cost %}<p class="hint">รอเจ้าของร้านใส่ต้นทุน</p>{% endif %}
+  {% endif %}
+</div>
+
+{% if p.status == "voided" %}
+<div class="card"><h2>ยกเลิกแล้ว</h2><p>เหตุผล: {{ p.void_reason }} · อนุมัติโดย {{ names.get(p.voided_by, "-") }}</p></div>
+{% else %}
+<div class="card narrow">
+  <h2>ยกเลิกใบรับนี้</h2>
+  <p class="hint">รับผิด (จำนวน/สินค้า/ราคา) ให้ยกเลิกแล้วบันทึกใหม่ — ต้องใช้ PIN เจ้าของร้าน สต็อกจะถูกตัดคืนและต้นทุนเฉลี่ยคำนวณใหม่</p>
+  <form method="post" action="/purchases/{{ p.id }}/void">
+    <label for="reason">เหตุผล</label>
+    <input type="text" id="reason" name="reason" maxlength="500" required>
+    <label for="owner_pin">PIN เจ้าของร้าน</label>
+    <input type="password" id="owner_pin" name="owner_pin" inputmode="numeric" maxlength="6" required autocomplete="off" class="pin-input">
+    <div class="actions"><button type="submit" class="danger">ยกเลิกใบรับ</button></div>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

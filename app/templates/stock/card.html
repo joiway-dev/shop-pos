@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}สต็อก {{ product.name }}{% endblock %}
+{% block content %}
+<p><a href="/stock">&larr; สต็อกสินค้า</a></p>
+<p class="eyebrow">บัตรสต็อก · {{ product.sku }}</p>
+<h1>{{ product.name }}</h1>
+{% if done %}<div class="alert alert-ok">ปรับสต็อกแล้ว</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<div class="stat-row">
+  <div class="stat {{ 'stat-warn' if balance < 0 or (product.min_stock_qty and balance <= product.min_stock_qty) else '' }}">
+    <small>คงเหลือ</small><b>{{ balance | qty }} {{ product.base_unit }}</b>
+  </div>
+  <div class="stat"><small>สต็อกขั้นต่ำ</small><b>{{ product.min_stock_qty | qty }} {{ product.base_unit }}</b></div>
+  {% if user.may_see_cost %}<div class="stat"><small>ต้นทุนเฉลี่ย / {{ product.base_unit }}</small><b>฿{{ product.avg_cost | money }}</b></div>{% endif %}
+</div>
+
+{% if user.is_owner %}
+<div class="grid-2">
+  <form class="card" method="post" action="/stock/{{ product.id }}/count">
+    <h2>ปรับตามที่นับได้จริง</h2>
+    <label for="counted">นับได้ ({{ product.base_unit }})</label>
+    <input type="text" id="counted" name="counted" inputmode="decimal" required>
+    <label for="reason-c">เหตุผล</label>
+    <input type="text" id="reason-c" name="reason" placeholder="เช่น นับสต็อกสิ้นเดือน" required maxlength="500">
+    <div class="actions"><button type="submit">ปรับยอด</button></div>
+  </form>
+  <form class="card" method="post" action="/stock/{{ product.id }}/writeoff">
+    <h2>ตัดสต็อกออก</h2>
+    <div class="grid-3">
+      <div><label for="qty-w">จำนวน ({{ product.base_unit }})</label><input type="text" id="qty-w" name="qty" inputmode="decimal" required></div>
+      <div><label for="kind">สาเหตุ</label>
+        <select id="kind" name="kind">{% for k, v in kinds.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+    </div>
+    <label for="reason-w">รายละเอียด</label>
+    <input type="text" id="reason-w" name="reason" placeholder="เช่น ถุงแตกตอนขนย้าย" required maxlength="500">
+    <div class="actions"><button type="submit" class="danger">ตัดออก</button></div>
+  </form>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>ความเคลื่อนไหว</h2>
+  {% if moves %}
+  <table class="table">
+    <thead><tr><th>วันเวลา</th><th>รายการ</th><th>อ้างอิง</th><th class="num">เข้า/ออก</th><th class="num">คงเหลือ</th>
+      {% if user.may_see_cost %}<th class="num">ทุน/หน่วย</th>{% endif %}<th>โดย</th></tr></thead>
+    <tbody>
+    {% for m, bal in moves %}
+      {% set t = to_local(m.created_at) %}
+      <tr>
+        <td class="nowrap">{{ t.day }}/{{ t.month }}/{{ t.year + 543 }} {{ t.strftime("%H:%M") }}</td>
+        <td>{{ labels.get((m.type, m.ref_type), m.type) }}{% if m.note %}<br><small class="hint">{{ m.note }}</small>{% endif %}</td>
+        <td>
+          {% if m.ref_type == "sale" and m.ref_id in sales_map %}<a href="/sales/{{ m.ref_id }}">{{ sales_map[m.ref_id] }}</a>
+          {% elif m.ref_id in lines_map and m.ref_type in ("purchase_line", "purchase_void") %}<a href="/purchases/{{ lines_map[m.ref_id][0] }}">{{ lines_map[m.ref_id][1] }}</a>
+          {% else %}-{% endif %}
+        </td>
+        <td class="num {{ 'ok-text' if m.qty_base > 0 else 'badge-danger' }}">{{ "+" if m.qty_base > 0 else "" }}{{ m.qty_base | qty }}</td>
+        <td class="num">{{ bal | qty }}</td>
+        {% if user.may_see_cost %}<td class="num">{{ m.unit_cost | money if m.unit_cost else "-" }}</td>{% endif %}
+        <td>{{ names.get(m.user_id, "-") }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="hint">ยังไม่มีความเคลื่อนไหว</p>{% endif %}
+</div>
+{% endblock %}

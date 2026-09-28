@@ -1,7 +1,7 @@
 """Shop settings (single row in `shop_settings`)."""
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models import ShopSetting
 from app.models.settings import HEAD_OFFICE_BRANCH_NO, VAT_MODE_VAT, VAT_MODES
+from app.services import documents
 from app.services.audit import log_action
 
 MAX_LOGO_BYTES = 1024 * 1024
@@ -43,6 +44,7 @@ class ShopSettingsInput:
     match_suggest_min: str = "60"
     match_min_gap: str = "8"
     doc_number_reset: str = "monthly"
+    doc_prefixes: dict = field(default_factory=dict)
 
 
 def get_shop_settings(db: Session) -> ShopSetting:
@@ -142,6 +144,10 @@ def _validate(data: ShopSettingsInput) -> tuple[dict, dict[str, str]]:
     if data.doc_number_reset not in ("monthly", "yearly"):
         errors["doc_number_reset"] = "รูปแบบเลขที่เอกสารไม่ถูกต้อง"
     values["doc_number_reset"] = data.doc_number_reset
+    prefixes, prefix_errors = documents.clean_prefixes(data.doc_prefixes)
+    for doc_type, message in prefix_errors.items():
+        errors[f"prefix_{doc_type}"] = message
+    values["doc_prefixes"] = prefixes
 
     for field, low, high, label in (
         ("match_auto_accept", 1, 100, "คะแนนลงบิลอัตโนมัติ"),

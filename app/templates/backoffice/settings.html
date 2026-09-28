@@ -80,6 +80,17 @@
       <label class="check"><input type="radio" name="doc_number_reset" value="yearly" {% if form.doc_number_reset == "yearly" %}checked{% endif %}> เริ่มนับใหม่ทุกปี <span class="hint">(RC2569-0001)</span></label>
     </div>
     {{ err("doc_number_reset") }}
+
+    <label>ตัวหน้าเลขที่เอกสาร <span class="hint">(อังกฤษหรือตัวเลข 1–6 ตัว ห้ามซ้ำกัน — มีผลกับเอกสารใหม่เท่านั้น)</span></label>
+    <div class="grid-3 prefix-grid">
+      {% for t, title in doc_titles.items() %}
+      <div>
+        <label for="prefix_{{ t }}" class="hint">{{ title }}</label>
+        <input type="text" id="prefix_{{ t }}" name="prefix_{{ t }}" value="{{ form.doc_prefixes.get(t, '') }}" maxlength="6" style="text-transform: uppercase">
+        {{ err("prefix_" ~ t) }}
+      </div>
+      {% endfor %}
+    </div>
   </div>
 
   <div class="card">

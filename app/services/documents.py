@@ -5,6 +5,7 @@ caller must have started it with `db.begin_immediate` so two tills cannot get
 the same number.
 """
 
+import re
 from datetime import datetime
 
 from sqlalchemy import select
@@ -20,8 +21,13 @@ DOC_DN = "DN"
 DOC_CN = "CN"
 DOC_QT = "QT"
 DOC_RV = "RV"
+DOC_GR = "GR"
 
-PREFIXES = {DOC_RC: "RC", DOC_ABB: "ABB", DOC_TAX: "INV", DOC_DN: "DN", DOC_CN: "CN", DOC_QT: "QT", DOC_RV: "RV"}
+DEFAULT_PREFIXES = {
+    DOC_RC: "RC", DOC_ABB: "ABB", DOC_TAX: "INV", DOC_DN: "DN", DOC_CN: "CN", DOC_QT: "QT", DOC_RV: "RV",
+    DOC_GR: "GR",
+}
+_PREFIX_RE = re.compile(r"^[A-Z0-9]{1,6}$")
 
 TITLES = {
     DOC_RC: "ใบเสร็จรับเงิน",
@@ -31,6 +37,7 @@ TITLES = {
     DOC_CN: "ใบลดหนี้",
     DOC_QT: "ใบเสนอราคา",
     DOC_RV: "ใบรับเงิน",
+    DOC_GR: "ใบรับสินค้า",
 }
 
 # Default paper per document type (SPEC phase 2).
@@ -58,12 +65,36 @@ def sale_doc_type(settings: ShopSetting, has_buyer: bool) -> str:
     raise DocumentError("ร้านจด VAT: กรุณากรอกชื่อและที่อยู่ผู้ซื้อเพื่อออกใบกำกับภาษี")
 
 
+def prefix_for(settings: ShopSetting, doc_type: str) -> str:
+    custom = (settings.doc_prefixes or {}).get(doc_type)
+    return custom or DEFAULT_PREFIXES[doc_type]
+
+
+def clean_prefixes(raw: dict[str, str]) -> tuple[dict[str, str], dict[str, str]]:
+    """Validate prefixes typed by the owner. Returns (prefixes, errors by doc type).
+    Prefixes must be unique so numbers of different documents can never collide."""
+    prefixes, errors = {}, {}
+    for doc_type, default in DEFAULT_PREFIXES.items():
+        value = (raw.get(doc_type) or "").strip().upper() or default
+        if not _PREFIX_RE.match(value):
+            errors[doc_type] = "ตัวอักษรอังกฤษหรือตัวเลข 1–6 ตัว"
+        prefixes[doc_type] = value
+    seen: dict[str, str] = {}
+    for doc_type, value in prefixes.items():
+        if value in seen and doc_type not in errors:
+            errors[doc_type] = f"ซ้ำกับ {TITLES[seen[value]]}"
+        seen.setdefault(value, doc_type)
+    return prefixes, errors
+
+
 def period_for(when: datetime, reset: str) -> str:
     year = when.year + 543
     return f"{year}" if reset == "yearly" else f"{year}-{when.month:02d}"
 
 
-def next_doc_no(db: Session, doc_type: str, when: datetime, reset: str = "monthly") -> str:
+def next_doc_no(
+    db: Session, doc_type: str, when: datetime, reset: str = "monthly", prefix: str | None = None
+) -> str:
     """Allocate the next number, e.g. RC2569-10-0001. Must run inside the
     caller's (IMMEDIATE) transaction; nothing is committed here."""
     period = period_for(when, reset)
@@ -75,4 +106,4 @@ def next_doc_no(db: Session, doc_type: str, when: datetime, reset: str = "monthl
         db.add(seq)
     seq.last_no += 1
     db.flush()
-    return f"{PREFIXES[doc_type]}{period}-{seq.last_no:04d}"
+    return f"{prefix or DEFAULT_PREFIXES[doc_type]}{period}-{seq.last_no:04d}"

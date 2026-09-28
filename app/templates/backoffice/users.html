@@ -12,7 +12,18 @@
     {% for u in users %}
       <tr x-data="{ pinOpen: false }" class="{{ '' if u.is_active else 'muted' }}">
         <td>{{ u.name }}{% if u.id == user.id %} <span class="hint">(คุณ)</span>{% endif %}</td>
-        <td>{{ "เจ้าของร้าน" if u.is_owner else "พนักงานขาย" }}</td>
+        <td>{{ "เจ้าของร้าน" if u.is_owner else "พนักงานขาย" }}
+          {% if not u.is_owner and u.is_active %}
+          <form method="post" action="/users/{{ u.id }}/permissions" class="perm-form">
+            <label class="check small-check"><input type="checkbox" name="can_receive_stock" value="true"
+              {% if u.can_receive_stock %}checked{% endif %} onchange="this.form.submit()"> รับสินค้าเข้าได้</label>
+            <label class="check small-check" title="ข้อยกเว้น: พนักงานคนนี้จะเห็นและกรอกต้นทุนได้">
+              <input type="checkbox" name="can_see_cost" value="true" {% if u.can_see_cost %}checked{% endif %}
+              onchange="if (this.checked && !confirm('ให้พนักงานคนนี้เห็นต้นทุนสินค้า?')) { this.checked = false; return; } this.form.submit()">
+              เห็นต้นทุน <span class="warn-text">(ข้อยกเว้น)</span></label>
+          </form>
+          {% endif %}
+        </td>
         <td>
           {% if not u.is_active %}ปิดใช้งาน
           {% elif locked[u.id] %}<span class="badge-danger">ล็อก (PIN ผิดหลายครั้ง)</span>
@@ -49,6 +60,7 @@
     {% endfor %}
     </tbody>
   </table>
+  <p class="hint">"รับสินค้าเข้าได้" = บันทึกรับของตามจำนวน แล้วเจ้าของร้านใส่ต้นทุนทีหลัง · "เห็นต้นทุน" = ให้เห็นและกรอกต้นทุนได้เอง (ปกติพนักงานห้ามเห็นต้นทุน)</p>
   <p class="hint">ผู้ใช้จะถูกล็อกชั่วคราวเมื่อใส่ PIN ผิด 5 ครั้งติดกัน — กด "ปลดล็อก" หรือ "เปลี่ยน PIN" เพื่อปลดได้ทันที</p>
 </div>
 

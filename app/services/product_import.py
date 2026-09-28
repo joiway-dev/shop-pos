@@ -113,7 +113,7 @@ def _cell_text(value) -> str:
     return str(value).strip()
 
 
-def read_rows(filename: str, content: bytes) -> list[dict[str, str]]:
+def read_rows(filename: str, content: bytes, required: list[str] | None = None) -> list[dict[str, str]]:
     if len(content) > MAX_FILE_BYTES:
         raise ImportFileError("ไฟล์ใหญ่เกิน 5 MB")
     name = filename.lower()
@@ -141,7 +141,7 @@ def read_rows(filename: str, content: bytes) -> list[dict[str, str]]:
     if not raw:
         raise ImportFileError("ไฟล์ว่าง")
     header = [h.strip() for h in raw[0]]
-    missing = [c for c in REQUIRED if c not in header]
+    missing = [c for c in (required or REQUIRED) if c not in header]
     if missing:
         raise ImportFileError("ไม่พบคอลัมน์: " + ", ".join(missing) + " — กรุณาใช้ไฟล์ตัวอย่าง")
     if len(raw) - 1 > MAX_ROWS:

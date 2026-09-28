@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}รับสินค้าเข้า{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">ใบรับสินค้า</p>
+    <h1>รับสินค้าเข้า <span class="hint">({{ total }} ใบ)</span></h1>
+  </div>
+  <div class="head-actions">
+    <a class="btn" href="/purchases/new">+ รับสินค้าเข้า</a>
+    {% if user.is_owner %}<a class="btn secondary" href="/suppliers">ผู้ขาย</a>{% endif %}
+  </div>
+</div>
+{% if user.may_see_cost and pending_cost_count %}
+<div class="alert alert-warn">มี {{ pending_cost_count }} ใบรอใส่ต้นทุน — <a href="/purchases?status=pending_cost">ดูรายการ</a></div>
+{% endif %}
+
+<form class="card filter-bar" method="get" action="/purchases">
+  <input type="text" name="q" value="{{ q }}" placeholder="เลขที่ / ผู้ขาย / เลขใบแจ้งหนี้ / ชื่อสินค้า" aria-label="ค้นหา">
+  <select name="status" aria-label="สถานะ">
+    <option value="">ทุกสถานะ</option>
+    {% for k, v in labels.items() %}<option value="{{ k }}" {% if status == k %}selected{% endif %}>{{ v }}</option>{% endfor %}
+  </select>
+  <button type="submit">ค้นหา</button>
+</form>
+
+<div class="card">
+  {% if rows %}
+  <table class="table">
+    <thead><tr><th>เลขที่</th><th>วันที่รับ</th><th>ผู้ขาย</th><th>ใบแจ้งหนี้</th>{% if user.may_see_cost %}<th class="num">ยอดรวม</th>{% endif %}<th>สถานะ</th></tr></thead>
+    <tbody>
+    {% for p in rows %}
+      {% set t = to_local(p.created_at) %}
+      <tr class="{{ 'muted' if p.status == 'voided' else '' }}">
+        <td><a href="/purchases/{{ p.id }}">{{ p.doc_no }}</a></td>
+        <td class="nowrap">{{ t.day }}/{{ t.month }}/{{ t.year + 543 }} {{ t.strftime("%H:%M") }}</td>
+        <td>{{ p.supplier.name if p.supplier else "-" }}</td>
+        <td>{{ p.supplier_invoice_no or "-" }}</td>
+        {% if user.may_see_cost %}<td class="num">{{ p.total | money if p.status == "completed" else "-" }}</td>{% endif %}
+        <td><span class="status {{ {'pending_cost': 'status-needs_choice', 'completed': 'status-ok', 'voided': 'status-not_found'}[p.status] }}">{{ labels[p.status] }}</span></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if pages > 1 %}
+  <div class="pager">{% for n in range(1, pages + 1) %}{% if n == page %}<b>{{ n }}</b>{% else %}<a href="?q={{ q | urlencode }}&status={{ status }}&page={{ n }}">{{ n }}</a>{% endif %}{% endfor %}</div>
+  {% endif %}
+  {% else %}<p class="hint">ยังไม่มีใบรับสินค้า</p>{% endif %}
+</div>
+{% endblock %}

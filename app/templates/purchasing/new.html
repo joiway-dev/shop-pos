@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}รับสินค้าเข้า{% endblock %}
+{% block content %}
+<p><a href="/purchases">&larr; รับสินค้าเข้า</a></p>
+<p class="eyebrow">ใบรับสินค้าใหม่</p>
+<h1>รับสินค้าเข้า</h1>
+<p class="subtitle">
+  {% if user.may_see_cost %}ใส่จำนวนและราคาทุนตามใบแจ้งหนี้ (ถ้ายังไม่รู้ราคา เว้นว่างทั้งหมดแล้วใส่ทีหลังได้)
+  {% else %}บันทึกจำนวนที่รับจริง — เจ้าของร้านจะใส่ต้นทุนภายหลัง{% endif %}
+</p>
+
+<div x-data='purchaseForm({{ config | tojson }})'>
+  <div class="card">
+    <div class="grid-3">
+      <div>
+        <label for="supplier">ผู้ขาย</label>
+        <select id="supplier" x-model.number="supplier_id">
+          <option :value="null">— ไม่ระบุ —</option>
+          {% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div><label for="inv-no">เลขที่ใบแจ้งหนี้/ใบส่งของ</label><input type="text" id="inv-no" x-model="invoice_no" maxlength="50"></div>
+      <div><label for="inv-date">วันที่ในใบ</label><input type="date" id="inv-date" x-model="invoice_date" class="date-input" style="width:100% !important"></div>
+    </div>
+    <template x-if="config.canCost">
+      <div>
+        <label>ราคาในใบของผู้ขาย</label>
+        <div class="radio-row">
+          {% for k, v in vat_labels.items() %}
+          <label class="check"><input type="radio" value="{{ k }}" x-model="vat_type"> {{ v }}</label>
+          {% endfor %}
+        </div>
+        <p class="hint" x-show="config.shopVat">ร้านจด VAT: ต้นทุนจะคิดจากราคาไม่รวม VAT (ภาษีซื้อขอคืนได้)</p>
+      </div>
+    </template>
+  </div>
+
+  <div class="card">
+    <h2>สินค้าที่รับ</h2>
+    <div class="search-wrap">
+      <span class="search-icon">{{ icon("search") }}</span>
+      <input type="text" class="search-input" x-model="search" x-ref="search" autocomplete="off"
+             placeholder="ค้นหาชื่อสินค้า หรือสแกนบาร์โค้ด" aria-label="ค้นหาสินค้า"
+             @input.debounce.200ms="runSearch()" @keydown.enter.prevent="pickFirst()">
+      <div class="search-results" x-show="results.length" x-cloak>
+        <template x-for="c in results" :key="c.product_id">
+          <button type="button" class="sr-item" @click="addProduct(c.product_id, c.unit_id)">
+            <span class="sr-name" x-text="c.name"></span><span class="sr-price" x-text="c.unit_name"></span>
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <table class="table units-table" x-show="lines.length" x-cloak>
+      <thead><tr><th>สินค้า</th><th>หน่วย</th><th>จำนวน</th><th x-show="config.canCost">ราคาทุน/หน่วย</th><th></th></tr></thead>
+      <tbody>
+        <template x-for="(l, i) in lines" :key="i">
+          <tr>
+            <td><b x-text="l.name"></b><small class="hint" x-show="l.avg_cost_text" x-text="' ทุนเฉลี่ยเดิม ' + l.avg_cost_text + ' / ' + l.base_unit"></small></td>
+            <td><select x-model.number="l.unit_id" aria-label="หน่วย">
+              <template x-for="u in l.units" :key="u.unit_id"><option :value="u.unit_id" x-text="u.unit_name" :selected="u.unit_id === l.unit_id"></option></template>
+            </select></td>
+            <td><input type="text" x-model="l.qty" inputmode="decimal" style="width:7rem" aria-label="จำนวน"></td>
+            <td x-show="config.canCost"><input type="text" x-model="l.unit_cost" inputmode="decimal" style="width:9rem" placeholder="เว้นว่าง = ใส่ทีหลัง" aria-label="ราคาทุนต่อหน่วย"></td>
+            <td><button type="button" class="small danger" @click="lines.splice(i, 1)">ลบ</button></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+    <p class="hint" x-show="!lines.length">ค้นหาแล้วกดสินค้าเพื่อเพิ่ม</p>
+    <label for="note">หมายเหตุ</label>
+    <input type="text" id="note" x-model="note" maxlength="500">
+    <div class="alert alert-error" x-show="error" x-text="error" style="margin-top: 1rem"></div>
+    <div class="actions"><button type="button" @click="submit()" :disabled="busy || !lines.length">บันทึกรับสินค้าเข้า</button></div>
+  </div>
+</div>
+
+<script>
+function purchaseForm(config) {
+  return {
+    config, supplier_id: null, invoice_no: "", invoice_date: "", vat_type: "none", note: "",
+    search: "", results: [], lines: [], error: "", busy: false,
+    async runSearch() {
+      if (!this.search.trim()) { this.results = []; return; }
+      const r = await fetch("/pos/search?q=" + encodeURIComponent(this.search)).then((r) => r.json());
+      this.results = r.candidates || [];
+    },
+    async pickFirst() { await this.runSearch(); if (this.results.length) this.addProduct(this.results[0].product_id, this.results[0].unit_id); },
+    async addProduct(productId, unitId) {
+      const p = await fetch("/purchases/units/" + productId).then((r) => r.json());
+      this.lines.push({ product_id: p.product_id, name: p.name, base_unit: p.base_unit, units: p.units,
+                        unit_id: unitId || p.default_unit_id, qty: "1", unit_cost: "", avg_cost_text: p.avg_cost_text });
+      this.search = ""; this.results = [];
+      this.$refs.search.focus();
+    },
+    async submit() {
+      this.busy = true; this.error = "";
+      try {
+        const body = { lines: this.lines.map((l) => ({ product_id: l.product_id, unit_id: l.unit_id, qty: l.qty, unit_cost: this.config.canCost ? l.unit_cost : "" })),
+                       supplier_id: this.supplier_id, supplier_invoice_no: this.invoice_no, supplier_invoice_date: this.invoice_date,
+                       vat_type: this.config.canCost ? this.vat_type : "none", note: this.note };
+        const res = await fetch("/purchases", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json());
+        if (!res.ok) { this.error = res.error; return; }
+        window.location = "/purchases/" + res.id + "?done=created";
+      } finally { this.busy = false; }
+    },
+  };
+}
+</script>
+{% endblock %}

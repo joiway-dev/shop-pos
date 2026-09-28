@@ -23,7 +23,22 @@ class User(TimestampMixin, Base):
         Integer, default=0, server_default="0", nullable=False
     )
     locked_until: Mapped[datetime | None] = mapped_column(DateTime)
+    # Per-staff permissions granted by the owner (owners always have both).
+    # can_receive_stock: record goods received (quantities only).
+    # can_see_cost: see/enter costs -- an owner-approved exception to rule 7.
+    can_receive_stock: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="0", nullable=False
+    )
+    can_see_cost: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
 
     @property
     def is_owner(self) -> bool:
         return self.role == ROLE_OWNER
+
+    @property
+    def may_receive_stock(self) -> bool:
+        return self.is_owner or self.can_receive_stock
+
+    @property
+    def may_see_cost(self) -> bool:
+        return self.is_owner or self.can_see_cost

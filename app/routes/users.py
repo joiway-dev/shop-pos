@@ -15,6 +15,7 @@ _MESSAGES = {
     "deactivated": "ปิดใช้งานผู้ใช้แล้ว",
     "unlocked": "ปลดล็อกแล้ว",
     "pin": "เปลี่ยน PIN เรียบร้อยแล้ว",
+    "permissions": "บันทึกสิทธิ์แล้ว",
 }
 
 
@@ -76,6 +77,24 @@ def users_set_active(
         db.rollback()
         return _render(request, db, user, error=str(e), status_code=400)
     return _done("activated" if active else "deactivated")
+
+
+@router.post("/{user_id}/permissions")
+def users_permissions(
+    request: Request,
+    db: DB,
+    user: OwnerUser,
+    user_id: int,
+    can_receive_stock: Annotated[bool, Form()] = False,
+    can_see_cost: Annotated[bool, Form()] = False,
+):
+    try:
+        auth.set_permissions(db, user, auth.get_user(db, user_id), can_receive_stock, can_see_cost)
+        db.commit()
+    except auth.AuthError as e:
+        db.rollback()
+        return _render(request, db, user, error=str(e), status_code=400)
+    return _done("permissions")
 
 
 @router.post("/{user_id}/unlock")

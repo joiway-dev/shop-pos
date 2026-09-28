@@ -5,7 +5,9 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import APP_DIR, AppConfig, load_config
 from app.db import create_db_engine, create_session_factory
-from app.routes import aliases, auth, categories, matching, pos, products, sales, settings, users
+from app.routes import (
+    aliases, auth, categories, matching, pos, products, purchases, sales, settings, stock, suppliers, users,
+)
 from app.routes.deps import LoginRequired, OwnerRequired
 from app.services.auth import get_active_user
 from app.templating import templates
@@ -52,6 +54,9 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     app.include_router(matching.router)
     app.include_router(pos.router)
     app.include_router(sales.router)
+    app.include_router(purchases.router)
+    app.include_router(suppliers.router)
+    app.include_router(stock.router)
     return app
 
 

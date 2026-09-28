@@ -28,7 +28,7 @@
 <div class="card">
   {% if products %}
   <table class="table">
-    <thead><tr><th>รหัส</th><th>ชื่อสินค้า</th><th>หมวด</th><th>ราคา</th>{% if user.is_owner %}<th>ต้นทุนเฉลี่ย</th>{% endif %}</tr></thead>
+    <thead><tr><th>รหัส</th><th>ชื่อสินค้า</th><th>หมวด</th><th>ราคา</th>{% if user.may_see_cost %}<th>ต้นทุนเฉลี่ย</th>{% endif %}</tr></thead>
     <tbody>
     {% for p in products %}
       <tr class="{{ '' if p.is_active else 'muted' }}">
@@ -40,7 +40,7 @@
           <div class="nowrap">{{ u.price | money }} / {{ u.unit_name }}</div>
           {% endfor %}
         </td>
-        {% if user.is_owner %}<td>{{ p.avg_cost | money }}</td>{% endif %}
+        {% if user.may_see_cost %}<td>{{ p.avg_cost | money }}</td>{% endif %}
       </tr>
     {% endfor %}
     </tbody>

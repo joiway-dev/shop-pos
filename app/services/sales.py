@@ -264,7 +264,9 @@ def create_sale(db: Session, actor: User, data: CheckoutInput) -> Sale:
             raise SaleError("บิลเดิมต้องถูกยกเลิกก่อน และยังไม่เคยออกใบใหม่แทน")
 
     is_vat = settings.vat_mode == VAT_MODE_VAT
-    doc_no = documents.next_doc_no(db, doc_type, now_local(), settings.doc_number_reset)
+    doc_no = documents.next_doc_no(
+        db, doc_type, now_local(), settings.doc_number_reset, documents.prefix_for(settings, doc_type)
+    )
     sale = Sale(
         doc_type=doc_type, doc_no=doc_no, status=SALE_COMPLETED,
         subtotal=totals.subtotal, discount=totals.discount, vatable_amount=totals.vatable_amount,

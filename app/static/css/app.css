@@ -493,5 +493,19 @@ button:disabled, button:disabled:hover { background: var(--line); border-color: 
 .totals-box div { display: flex; justify-content: space-between; padding: 0.2rem 0; }
 .totals-box .grand { border-top: 1px solid var(--line-strong); margin-top: 0.3rem; padding-top: 0.5rem; font-size: 1.2rem; }
 
+/* ---- Stock / purchasing ------------------------------------------------- */
+.nav-badge { background: var(--primary) !important; color: var(--primary-ink); font-weight: 700; }
+.stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.2rem; }
+.stat { display: flex; flex-direction: column; gap: 0.2rem; background: var(--card-soft); border-radius: var(--radius); padding: 1rem 1.2rem; text-decoration: none; color: var(--text); }
+.stat small { color: var(--muted); }
+.stat b { font-size: 1.5rem; }
+.stat-warn { background: var(--warn-bg); color: var(--warn); }
+.stat-warn small { color: var(--warn); }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 0 1.2rem; }
+.ok-text { color: var(--ok); font-weight: 700; }
+.perm-form { display: flex; flex-direction: column; gap: 0.1rem; margin-top: 0.3rem; }
+.prefix-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.prefix-grid label { margin-top: 0.4rem; }
+
 .logo-preview { max-height: 90px; max-width: 240px; border: 1px solid var(--line); border-radius: 10px; padding: 4px; background: #fff; }
 .footer { text-align: center; color: var(--muted); font-size: 0.8rem; margin: 2rem 0 1rem; }

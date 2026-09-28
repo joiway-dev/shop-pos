@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}สต็อกสินค้า{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">คลังสินค้า</p>
+    <h1>สต็อกสินค้า <span class="hint">({{ total }} รายการ)</span></h1>
+  </div>
+  <div class="head-actions">
+    {% if user.may_receive_stock %}<a class="btn" href="/purchases/new">+ รับสินค้าเข้า</a>{% endif %}
+    {% if user.is_owner %}<a class="btn secondary" href="/stock/opening">นำเข้ายอดยกมา</a>{% endif %}
+  </div>
+</div>
+
+<div class="stat-row">
+  <a class="stat {{ 'stat-warn' if low_stock_count else '' }}" href="/stock?low=true">
+    <small>ต่ำกว่าสต็อกขั้นต่ำ</small><b>{{ low_stock_count }} รายการ</b>
+  </a>
+  {% if value is not none %}
+  <div class="stat"><small>มูลค่าสต็อก (ตามต้นทุนเฉลี่ย)</small><b>฿{{ value | money }}</b></div>
+  {% endif %}
+</div>
+
+<form class="card filter-bar" method="get" action="/stock">
+  <input type="text" name="q" value="{{ q }}" placeholder="ค้นหาชื่อสินค้า หรือรหัส" aria-label="ค้นหา">
+  <select name="category_id" aria-label="หมวดหมู่">
+    <option value="">ทุกหมวด</option>
+    {% for c in categories %}<option value="{{ c.id }}" {% if c.id == category_id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+  </select>
+  <label class="check"><input type="checkbox" name="low" value="true" {% if low %}checked{% endif %}> เฉพาะที่ใกล้หมด</label>
+  <button type="submit">ค้นหา</button>
+</form>
+
+<div class="card">
+  {% if rows %}
+  <table class="table">
+    <thead><tr><th>รหัส</th><th>สินค้า</th><th class="num">คงเหลือ</th><th class="num">ขั้นต่ำ</th>
+      {% if user.may_see_cost %}<th class="num">ทุนเฉลี่ย</th><th class="num">มูลค่า</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for p, bal in rows %}
+      {% set is_low = p.min_stock_qty > 0 and bal <= p.min_stock_qty %}
+      <tr>
+        <td>{{ p.sku }}</td>
+        <td><a href="/stock/{{ p.id }}">{{ p.name }}</a></td>
+        <td class="num {{ 'badge-danger' if bal < 0 else ('warn-text' if is_low else '') }}">{{ bal | qty }} {{ p.base_unit }}</td>
+        <td class="num">{{ p.min_stock_qty | qty if p.min_stock_qty else "-" }}</td>
+        {% if user.may_see_cost %}
+        <td class="num">{{ p.avg_cost | money }}</td>
+        <td class="num">{{ bal | stock_value(p.avg_cost) }}</td>
+        {% endif %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if pages > 1 %}
+  <div class="pager">{% for n in range(1, pages + 1) %}{% if n == page %}<b>{{ n }}</b>{% else %}<a href="?q={{ q | urlencode }}&category_id={{ category_id or '' }}&low={{ 'true' if low else '' }}&page={{ n }}">{{ n }}</a>{% endif %}{% endfor %}</div>
+  {% endif %}
+  {% else %}<p class="hint">ไม่พบสินค้า</p>{% endif %}
+</div>
+{% endblock %}

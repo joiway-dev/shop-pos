@@ -14,20 +14,27 @@
   <script defer src="/static/vendor/alpine.min.js"></script>
 </head>
 {% if user %}
+{#- (href, label, icon, badge count) -#}
 {%- set nav_main = [
-  ("/pos", "ขายหน้าร้าน", "cart", False),
-  ("/sales", "บิลขาย", "clipboard", False),
-  ("/", "หน้าหลัก", "home", False),
-  ("/products", "สินค้า", "box", False),
-  ("/matching", "ทดสอบจับคู่สินค้า", "sparkle", False),
+  ("/pos", "ขายหน้าร้าน", "cart", 0),
+  ("/sales", "บิลขาย", "clipboard", 0),
+  ("/", "หน้าหลัก", "home", 0),
+  ("/products", "สินค้า", "box", 0),
+  ("/stock", "สต็อกสินค้า", "layers", low_stock_count),
 ] -%}
+{%- if user.may_receive_stock -%}
+  {%- set nav_main = nav_main + [("/purchases", "รับสินค้าเข้า", "truck", pending_cost_count if user.may_see_cost else 0)] -%}
+{%- endif -%}
+{%- set nav_main = nav_main + [("/matching", "ทดสอบจับคู่สินค้า", "sparkle", 0)] -%}
 {%- set nav_owner = [
-  ("/products/import", "นำเข้าสินค้า (Excel)", "upload", True),
-  ("/categories", "หมวดหมู่", "folder", True),
-  ("/aliases", "ชื่อเรียกสินค้า", "tag", True),
-  ("/users", "ผู้ใช้งาน", "users", True),
-  ("/settings", "ตั้งค่าร้าน", "settings", True),
-] -%}
+  ("/products/import", "นำเข้าสินค้า (Excel)", "upload", 0),
+  ("/stock/opening", "นำเข้ายอดยกมา", "upload", 0),
+  ("/suppliers", "ผู้ขาย", "truck", 0),
+  ("/categories", "หมวดหมู่", "folder", 0),
+  ("/aliases", "ชื่อเรียกสินค้า", "tag", 0),
+  ("/users", "ผู้ใช้งาน", "users", 0),
+  ("/settings", "ตั้งค่าร้าน", "settings", 0),
+] if user.is_owner else [] -%}
 {#- Active item = the longest nav path that prefixes the current path. -#}
 {%- set ns = namespace(active="") -%}
 {%- for href, _, _, _ in nav_main + nav_owner -%}
@@ -36,8 +43,8 @@
   {%- endif -%}
 {%- endfor -%}
 {% macro nav_item(item) -%}
-  {%- set href, label, ico, _ = item -%}
-  <a href="{{ href }}" class="nav-item {{ 'active' if href == ns.active else '' }}">{{ icon(ico) }}<span>{{ label }}</span></a>
+  {%- set href, label, ico, badge = item -%}
+  <a href="{{ href }}" class="nav-item {{ 'active' if href == ns.active else '' }}">{{ icon(ico) }}<span>{{ label }}</span>{% if badge %}<em class="nav-badge">{{ badge }}</em>{% endif %}</a>
 {%- endmacro %}
 <body x-data="{ mobileNav: false, collapsed: false, dark: document.documentElement.dataset.theme === 'dark' }"
       x-init="try { collapsed = localStorage.getItem('navCollapsed') === '1' } catch (e) {}"
